@@ -15,7 +15,7 @@ from .store import Store
 log = logging.getLogger("journal")
 
 ACTORS = {"user": "player", "api": "companion", "game": "game"}
-PREFIXES = ("cmd", "txt", "cbo", "chk", "rdo", "lst", "lv", "tv", "tab", "lbl", "flp", "pnl", "opt", "num")
+PREFIXES = ("lstv", "cmd", "txt", "cbo", "chk", "rdo", "lst", "lv", "tv", "tab", "lbl", "flp", "pnl", "opt", "num")
 
 
 def humanize(control: str | None) -> str:
@@ -108,6 +108,94 @@ class ClassDesignExtractor:
         return out
 
 
+class ChangeExtractor:
+    """For any window: after an action, report which controls changed value (e.g. a research ETA,
+    a population's stockpile) so the journal records what the player saw as a result."""
+
+    SKIP_WINDOWS = {"Tactical Map", "Class Design", "AuroraPatch"}
+    MAX_LINES = 8
+    MAX_VALUE = 140
+    WINDOW = "*"
+
+    def __init__(self):
+        self.snapshots: dict[str, dict[str, str]] = {}
+
+    async def after(self, patch: PatchClient, events: list[dict]) -> list[str]:
+        out = []
+        for window in dict.fromkeys(window_name(e) for e in events if not e["type"].startswith("dialog")):
+            if window in self.SKIP_WINDOWS:
+                continue
+            if any(e["type"] == "form_close" and window_name(e) == window for e in events):
+                self.snapshots.pop(window, None)
+                continue
+            try:
+                tree = await patch.form_json(window)
+            except PatchError:
+                continue
+            state = {}
+            _flatten(tree, state)
+            before = self.snapshots.get(window)
+            self.snapshots[window] = state
+            if before is None:
+                continue  # First look at this window: just a baseline.
+            # The controls the player touched are already described by their own events.
+            touched = {e.get("control") for e in events if window_name(e) == window}
+            changes = []
+            for key, value in state.items():
+                name = key.split("|", 1)[0]
+                old = before.get(key)
+                # Controls the player touched are described by their own events; controls that only just
+                # appeared have no "before" worth reporting.
+                if name in touched or old is None or old == value:
+                    continue
+                label = key.split("|", 1)[1] or humanize(name)
+                if re.match(r"\d+ rows", value):
+                    changes.append(f"{label} list: {value[: self.MAX_VALUE]}")  # the new contents are what matter
+                else:
+                    changes.append(f"{label}: {_clip(old, self.MAX_VALUE)} → {_clip(value, self.MAX_VALUE)}")
+            if changes:
+                more = f" (+{len(changes) - self.MAX_LINES} more)" if len(changes) > self.MAX_LINES else ""
+                out.append(f"{window}: now showing " + "; ".join(changes[: self.MAX_LINES]) + more)
+        return out
+
+
+def _flatten(node: dict, state: dict):
+    """control name|label -> short value string, for controls that carry information."""
+    name = node.get("name")
+    kind = node.get("kind")
+    value = None
+    if kind in ("TextBox", "RichTextBox", "ComboBox", "NumericUpDown"):
+        value = node.get("value")
+    elif kind == "Label" and ((name or "").startswith("txt") or node.get("label")):
+        value = node.get("text")
+    elif kind in ("CheckBox", "RadioButton"):
+        value = "on" if node.get("checked") else "off"
+    elif kind == "TabControl":
+        value = node.get("selectedTab")
+    elif kind == "TreeView":
+        value = (node.get("selected") or "").replace("\\", " > ") or None
+    elif kind == "ListBox":
+        items = node.get("items") or []
+        value = ", ".join(items[i] for i in node.get("selectedIndices", []) if i < len(items)) or None
+    elif kind == "ListView":
+        # Aurora draws headers as the first row(s); summarise the rest by their first column.
+        rows = [r for r in node.get("rows", []) if any(c.strip() for c in r)]
+        if node.get("columns") and all(c in ("", "ColumnHeader") for c in node["columns"]) and rows:
+            rows = rows[1:]
+        names = [r[0] if r[0].strip() or len(r) < 2 else r[1] for r in rows[:3]]
+        value = f'{node.get("rowCount", 0)} rows' + (": " + ", ".join(names) + (", …" if len(rows) > 3 else "") if names else "")
+    if name and value is not None:
+        v = " / ".join(l.strip() for l in str(value).splitlines() if l.strip())
+        state[f'{name}|{node.get("label") or ""}'] = v
+    for child in node.get("children", []):
+        _flatten(child, state)
+
+
+def _clip(v, n: int) -> str:
+    v = "" if v is None else str(v)
+    return '"' + (v if len(v) <= n else v[: n - 1] + "…") + '"'
+
+
 def _find_value(node: dict, name: str):
     if node.get("name") == name:
         return node.get("value")
@@ -127,7 +215,7 @@ class Journal:
         self.patch = patch
         self.store = store
         self.hub = hub
-        self.extractors = [ClassDesignExtractor()]
+        self.extractors = [ClassDesignExtractor(), ChangeExtractor()]
         self.last_game_time: str | None = None
         self.last_open: str | None = None
 
@@ -139,6 +227,10 @@ class Journal:
                 if since is None:
                     # Start from "now"; history before the bridge started is not replayed.
                     since = data["latest"]
+                    continue
+                if data["latest"] < since:
+                    # Aurora restarted and its event numbering began again: replay the new process's events.
+                    since = 0
                     continue
                 events = data["events"]
                 if not events:
@@ -152,9 +244,9 @@ class Journal:
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # Aurora restarting, patch not loaded yet, ...
+                # Keep our position: events recorded while we were away are fetched on reconnect.
                 log.warning("event stream: %s", e)
-                since = None
-                await asyncio.sleep(3)
+                await asyncio.sleep(1)
 
     async def process(self, events: list[dict]):
         for ev in events:
@@ -179,7 +271,8 @@ class Journal:
         for extractor in self.extractors:
             try:
                 for line in await extractor.after(self.patch, events):
-                    self.add("game", f"{extractor.WINDOW}: {line}", self.last_game_time)
+                    prefix = "" if extractor.WINDOW == "*" else f"{extractor.WINDOW}: "
+                    self.add("game", prefix + line, self.last_game_time)
             except Exception as e:
                 log.warning("extractor %s: %s", type(extractor).__name__, e)
 

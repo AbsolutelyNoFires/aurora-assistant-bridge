@@ -14,7 +14,7 @@ def _fn(name: str, description: str, properties: dict, required: list[str]) -> d
     }}
 
 
-_window = {"type": "string", "description": "Window title as shown by list_windows, e.g. \"Class Design\", or \"TacticalMapForm\" for the main map."}
+_window = {"type": "string", "description": "Window name as shown by list_windows, e.g. \"Class Design\" or \"Tactical Map\"."}
 _control = {"type": "string", "description": "Control name from read_window, e.g. \"cmdDesignTech\"."}
 
 TOOLS = [
@@ -25,7 +25,7 @@ TOOLS = [
          "all_tree_nodes": {"type": "boolean", "description": "Expand collapsed tree nodes too."},
          "combo_options": {"type": "boolean", "description": "Include every drop-down option."}},
         ["window"]),
-    _fn("click", "Click a button. To open a main window, click its toolbar button on TacticalMapForm "
+    _fn("click", "Click a button. To open a main window, click its toolbar button on the Tactical Map "
         "(cmdToolbarClass = Class Design, cmdToolbarResearch = Research, cmdToolbarFleet = Naval Organisation, "
         "cmdToolbarColony = Economics, cmdToolbarTechnology = Technology, cmdToolbarEvents = Events).",
         {"window": _window, "control": _control}, ["window", "control"]),
@@ -71,8 +71,7 @@ async def run_tool(patch: PatchClient, name: str, args: dict) -> str:
 async def _run(patch: PatchClient, name: str, a: dict):
     if name == "list_windows":
         forms = await patch.forms()
-        return [{"window": f.get("known") if f.get("known") == "TacticalMapForm" else f["title"], "active": f["active"]}
-                for f in forms if f["type"] != "AuroraPatchForm"]
+        return [{"window": f["name"], "active": f["active"]} for f in forms if f["type"] != "AuroraPatchForm"]
     if name == "read_window":
         params = {}
         if a.get("all_tree_nodes"):

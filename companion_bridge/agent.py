@@ -27,7 +27,7 @@ game journal, read any open window as text, and operate the game's windows yours
 How to work:
 - The journal shows recent actions by the player, by you (companion) and the game, oldest first, with in-game dates.
 - Windows are read as an outline of controls. Use read_window before acting on a window, and use the exact control \
-names it shows. Main windows open from toolbar buttons on TacticalMapForm.
+names it shows. Main windows open from toolbar buttons on the Tactical Map.
 - After acting, check the result (the tool result, or read the window again). If a message box appears, read it \
 and answer it with answer_dialog.
 - Do what the player asks, carefully and completely. Ask before anything destructive or irreversible \
@@ -254,8 +254,7 @@ class Agent:
         try:
             health = await self.patch.health()
             forms = await self.patch.forms()
-            windows = ", ".join(("Tactical Map" if f.get("known") == "TacticalMapForm" else f["title"].strip())
-                                + (" (active)" if f["active"] else "")
+            windows = ", ".join(f["name"] + (" (active)" if f["active"] else "")
                                 for f in forms if f["type"] != "AuroraPatchForm")
             title = (health.get("title") or "").split("   ")
             state = f"[Now] {title[1].strip() if len(title) > 1 else '?'} — open windows: {windows}"
