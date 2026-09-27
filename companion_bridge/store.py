@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS chat (
     tool_call_id TEXT,            -- (tool)
     name TEXT                     -- tool name (tool)
 );
+-- "Clear history" hides rows up to these ids instead of deleting them.
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 
 
@@ -31,6 +33,20 @@ class Store:
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self.chat_floor = int(self._meta("chat_floor", "0"))
+        self.journal_floor = int(self._meta("journal_floor", "0"))
+
+    def _meta(self, key: str, default: str) -> str:
+        row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def clear(self):
+        """Hide all chat and journal rows so far (kept in the database, not deleted)."""
+        self.chat_floor = self.db.execute("SELECT coalesce(max(id), 0) FROM chat").fetchone()[0]
+        self.journal_floor = self.db.execute("SELECT coalesce(max(id), 0) FROM journal").fetchone()[0]
+        self.db.executemany("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                            [("chat_floor", str(self.chat_floor)), ("journal_floor", str(self.journal_floor))])
+        self.db.commit()
 
     # Journal ------------------------------------------------------------------------------
 
@@ -43,11 +59,12 @@ class Store:
         return {"id": cur.lastrowid, "time": now, "game_time": game_time, "actor": actor, "text": text}
 
     def journal_since(self, after_id: int) -> list[dict]:
-        rows = self.db.execute("SELECT * FROM journal WHERE id > ? ORDER BY id", (after_id,))
+        rows = self.db.execute("SELECT * FROM journal WHERE id > ? ORDER BY id", (max(after_id, self.journal_floor),))
         return [dict(r) for r in rows]
 
     def journal_tail(self, limit: int) -> list[dict]:
-        rows = self.db.execute("SELECT * FROM (SELECT * FROM journal ORDER BY id DESC LIMIT ?) ORDER BY id", (limit,))
+        rows = self.db.execute("SELECT * FROM (SELECT * FROM journal WHERE id > ? ORDER BY id DESC LIMIT ?) ORDER BY id",
+                               (self.journal_floor, limit))
         return [dict(r) for r in rows]
 
     # Chat ---------------------------------------------------------------------------------
@@ -62,11 +79,12 @@ class Store:
         return self._chat_row(self.db.execute("SELECT * FROM chat WHERE id = ?", (cur.lastrowid,)).fetchone())
 
     def chat_since(self, after_id: int) -> list[dict]:
-        rows = self.db.execute("SELECT * FROM chat WHERE id > ? ORDER BY id", (after_id,))
+        rows = self.db.execute("SELECT * FROM chat WHERE id > ? ORDER BY id", (max(after_id, self.chat_floor),))
         return [self._chat_row(r) for r in rows]
 
     def chat_tail(self, limit: int) -> list[dict]:
-        rows = self.db.execute("SELECT * FROM (SELECT * FROM chat ORDER BY id DESC LIMIT ?) ORDER BY id", (limit,))
+        rows = self.db.execute("SELECT * FROM (SELECT * FROM chat WHERE id > ? ORDER BY id DESC LIMIT ?) ORDER BY id",
+                               (self.chat_floor, limit))
         return [self._chat_row(r) for r in rows]
 
     @staticmethod

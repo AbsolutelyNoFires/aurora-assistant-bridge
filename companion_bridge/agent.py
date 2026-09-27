@@ -53,6 +53,7 @@ class Agent:
         self.busy = False
         self.current: asyncio.Task | None = None
         self.partial: list[str] = []  # Reply text streamed so far in the current call.
+        self.clearing = False
         self.last_turn_time = time.time()
         # Ids of the last chat row / journal entry the companion has seen.
         tail = store.chat_tail(1)
@@ -90,6 +91,9 @@ class Agent:
                 # Stopped by the player. Everything up to now counts as handled, so the companion
                 # does not immediately start again on the same message.
                 self._mark_seen()
+                if self.clearing:
+                    self.clearing = False
+                    continue
                 if "".join(self.partial).strip():
                     self._post_assistant("".join(self.partial).strip() + " …")
                 self._post_note("stopped")
@@ -100,6 +104,14 @@ class Agent:
                 self.current = None
             if self._due():
                 self.wake.set()
+
+    def clear_history(self):
+        """Stop any running turn and start the companion's context afresh."""
+        self.clearing = self.stop()
+        self.store.clear()
+        self.chat_start = self.journal_start = 0
+        self._mark_seen()
+        self.hub.publish({"type": "cleared"})
 
     def stop(self) -> bool:
         """Cancel the running turn. Cancelling closes the streaming request, which makes the model

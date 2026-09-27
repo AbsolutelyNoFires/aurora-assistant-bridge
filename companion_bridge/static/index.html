@@ -93,6 +93,7 @@
       <span class="title">Companion</span>
       <button id="showChat" aria-pressed="true" title="Show chat messages">Chat</button>
       <button id="showJournal" aria-pressed="true" title="Show game journal">Journal</button>
+      <button id="clear" title="Clear the chat and journal: the companion starts with a fresh context">Clear</button>
       <button id="collapse" title="Collapse sidebar">⇥</button>
     </header>
     <div class="status" id="status"></div>
@@ -295,6 +296,7 @@ function connect() {
     else if (m.type === 'thinking') { reasoning = ''; dropStreaming(); }
     else if (m.type === 'delta') streamDelta(m.text);
     else if (m.type === 'discard') dropStreaming();
+    else if (m.type === 'cleared') { streaming = null; feed.replaceChildren(); seen.clear(); }
   };
   es.onerror = () => { es.close(); setTimeout(() => { load(); connect(); }, 3000); };
 }
@@ -307,6 +309,10 @@ document.getElementById('send').onsubmit = async ev => {
   t.value = '';
   const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
   if (r.ok) addChat(await r.json());
+};
+document.getElementById('clear').onclick = async () => {
+  if (!confirm('Clear the chat and journal for everyone? The companion will start with a fresh context.')) return;
+  await fetch('/api/clear', { method: 'POST' });
 };
 document.getElementById('stop').onclick = async () => {
   await fetch('/api/stop', { method: 'POST' });
