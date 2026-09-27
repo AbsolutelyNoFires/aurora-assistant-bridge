@@ -51,6 +51,8 @@ class Agent:
             if cfg.llm_enabled else None
         self.wake = asyncio.Event()
         self.busy = False
+        self.current: asyncio.Task | None = None
+        self.partial: list[str] = []  # Reply text streamed so far in the current call.
         self.last_turn_time = time.time()
         # Ids of the last chat row / journal entry the companion has seen.
         tail = store.chat_tail(1)
@@ -79,13 +81,33 @@ class Agent:
             reason = self._due()
             if reason is None:
                 continue
+            self.current = asyncio.create_task(self.turn(reason))
             try:
-                await self.turn(reason)
+                await self.current
+            except asyncio.CancelledError:
+                if not self.current.cancelled():
+                    raise  # The bridge itself is shutting down.
+                # Stopped by the player. Everything up to now counts as handled, so the companion
+                # does not immediately start again on the same message.
+                self._mark_seen()
+                if "".join(self.partial).strip():
+                    self._post_assistant("".join(self.partial).strip() + " …")
+                self._post_note("stopped")
             except Exception as e:
                 log.exception("turn failed")
                 self._post_assistant(f"(companion error: {e})")
+            finally:
+                self.current = None
             if self._due():
                 self.wake.set()
+
+    def stop(self) -> bool:
+        """Cancel the running turn. Cancelling closes the streaming request, which makes the model
+        server (llama.cpp) abort generation; no further tool steps run."""
+        if self.current and not self.current.done():
+            self.current.cancel()
+            return True
+        return False
 
     def _due(self) -> str | None:
         if any(r["role"] == "user" for r in self.store.chat_since(self.answered_chat_id)):
@@ -127,6 +149,7 @@ class Agent:
                 messages = _merge_consecutive_user(self.build_context(text_mode) + [await self._state_note(nudge)])
                 self._mark_seen()
                 self.hub.publish({"type": "thinking"})
+                self.partial = []
                 result = await self.llm.complete(
                     messages, None if text_mode else TOOLS,
                     on_delta=self._publish_delta, on_reasoning=self._publish_reasoning)
@@ -279,7 +302,8 @@ class Agent:
 
     def _post_note(self, reason: str):
         text = {"journal": "(Companion checked in on recent game activity.)",
-                "timer": "(Companion checked in after a while.)"}.get(reason, f"({reason})")
+                "timer": "(Companion checked in after a while.)",
+                "stopped": "(Stopped by the player.)"}.get(reason, f"({reason})")
         row = self.store.add_chat("note", text)
         self.hub.publish({"type": "chat", "message": row})
 
@@ -287,6 +311,7 @@ class Agent:
         self.hub.publish({"type": "reasoning", "text": d})
 
     async def _publish_delta(self, d: str):
+        self.partial.append(d)
         self.hub.publish({"type": "delta", "text": d})
 
     def _set_busy(self, busy: bool):

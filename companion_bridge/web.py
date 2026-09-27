@@ -53,6 +53,9 @@ def make_app(store: Store, hub: Hub, agent: Agent, vnc_ws_url: str) -> web.Appli
             return web.json_response({"error": "empty message"}, status=400)
         return web.json_response(agent.player_message(text))
 
+    async def stop(request: web.Request):
+        return web.json_response({"stopped": agent.stop()})
+
     async def stream(request: web.Request):
         resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
         await resp.prepare(request)
@@ -76,5 +79,6 @@ def make_app(store: Store, hub: Hub, agent: Agent, vnc_ws_url: str) -> web.Appli
     app.router.add_static("/novnc/", NOVNC, follow_symlinks=True)
     app.router.add_get("/api/history", history)
     app.router.add_post("/api/chat", chat)
+    app.router.add_post("/api/stop", stop)
     app.router.add_get("/api/stream", stream)
     return app
