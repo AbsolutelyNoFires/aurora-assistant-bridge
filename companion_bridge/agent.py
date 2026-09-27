@@ -129,7 +129,7 @@ class Agent:
                 self.hub.publish({"type": "thinking"})
                 result = await self.llm.complete(
                     messages, None if text_mode else TOOLS,
-                    on_delta=lambda d: self._publish_delta(d))
+                    on_delta=self._publish_delta, on_reasoning=self._publish_reasoning)
                 content = result["content"].strip()
                 calls = result["tool_calls"]
                 if text_mode:
@@ -283,6 +283,9 @@ class Agent:
                 "timer": "(Companion checked in after a while.)"}.get(reason, f"({reason})")
         row = self.store.add_chat("note", text)
         self.hub.publish({"type": "chat", "message": row})
+
+    async def _publish_reasoning(self, d: str):
+        self.hub.publish({"type": "reasoning", "text": d})
 
     async def _publish_delta(self, d: str):
         self.hub.publish({"type": "delta", "text": d})

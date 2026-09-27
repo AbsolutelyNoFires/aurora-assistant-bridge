@@ -1,10 +1,15 @@
 """Minimal streaming client for OpenAI-style /v1/chat/completions, with tool calls."""
 
 import json
+import logging
 import re
+import time
 from typing import Awaitable, Callable
 
 import aiohttp
+
+
+log = logging.getLogger("llm")
 
 
 class LLMError(Exception):
@@ -20,7 +25,8 @@ class LLM:
         self.timeout = aiohttp.ClientTimeout(total=timeout_s, sock_read=timeout_s)
 
     async def complete(self, messages: list[dict], tools: list[dict] | None,
-                       on_delta: Callable[[str], Awaitable[None]] | None = None) -> dict:
+                       on_delta: Callable[[str], Awaitable[None]] | None = None,
+                       on_reasoning: Callable[[str], Awaitable[None]] | None = None) -> dict:
         """Stream one completion. Returns {"content": str, "tool_calls": [...]}."""
         body = {"model": self.model, "messages": messages, "stream": True, "temperature": self.temperature}
         if tools:
@@ -30,6 +36,9 @@ class LLM:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         content = []
+        reasoning_chars = 0
+        timings = None
+        started = time.monotonic()
         calls: dict[int, dict] = {}
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.post(self.url, json=body, headers=headers) as r:
@@ -43,9 +52,16 @@ class LLM:
                     if data == "[DONE]":
                         break
                     chunk = json.loads(data)
+                    timings = chunk.get("timings") or timings  # llama.cpp reports these on the last chunk
                     if not chunk.get("choices"):
                         continue
                     delta = chunk["choices"][0].get("delta") or {}
+                    # Reasoning models (Qwen3, DeepSeek...) stream their thinking separately; it is shown
+                    # live but not kept in the history.
+                    if delta.get("reasoning_content"):
+                        reasoning_chars += len(delta["reasoning_content"])
+                        if on_reasoning:
+                            await on_reasoning(delta["reasoning_content"])
                     if delta.get("content"):
                         content.append(delta["content"])
                         if on_delta:
@@ -59,6 +75,17 @@ class LLM:
                             slot["name"] += fn["name"]
                         if fn.get("arguments"):
                             slot["arguments"] += fn["arguments"]
+
+        elapsed = time.monotonic() - started
+        if timings:
+            log.info("call %.1fs: prompt %d tok (%d cached) in %.1fs @ %.0f tok/s; generated %d tok in %.1fs @ %.1f tok/s "
+                     "(reasoning %d chars, reply %d chars)", elapsed,
+                     timings.get("prompt_n", 0) + timings.get("cache_n", 0), timings.get("cache_n", 0),
+                     timings.get("prompt_ms", 0) / 1000, timings.get("prompt_per_second", 0),
+                     timings.get("predicted_n", 0), timings.get("predicted_ms", 0) / 1000,
+                     timings.get("predicted_per_second", 0), reasoning_chars, sum(map(len, content)))
+        else:
+            log.info("call %.1fs (reasoning %d chars, reply %d chars)", elapsed, reasoning_chars, sum(map(len, content)))
 
         tool_calls = [
             {"id": c["id"] or f"call_{i}", "type": "function",
