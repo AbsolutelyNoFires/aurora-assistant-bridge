@@ -6,47 +6,76 @@
 <title>Aurora Companion</title>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e;
-    --player: #1f6feb; --companion: #238636; --tool: #6e7681; --accent: #58a6ff; --warn: #d29922;
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --faint: #6e7681;
+    --you-bg: #1c3b66; --you-border: #2f6fce; --ai-bg: #1b2a22; --ai-border: #2ea043;
+    --accent: #58a6ff; --companion: #3fb950; --warn: #d29922;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   .layout { display: flex; height: 100vh; }
   .game { flex: 1; min-width: 0; background: #000; }
   .game iframe { width: 100%; height: 100%; border: 0; display: block; }
-  .side { width: 400px; display: flex; flex-direction: column; background: var(--panel);
-    border-left: 1px solid var(--border); }
-  .side.collapsed { width: 36px; }
-  .side.collapsed > :not(header) { display: none; }
-  .side.collapsed header .title, .side.collapsed header .tabs { display: none; }
+  .side { width: 420px; display: flex; flex-direction: column; background: var(--panel);
+    border-left: 1px solid var(--border); min-height: 0; }
+  .side.collapsed { width: 40px; }
+  .side.collapsed > :not(header), .side.collapsed header > :not(#collapse) { display: none; }
+
   header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   header .title { font-weight: 600; flex: 1; }
-  header button, .tabs button { background: none; border: 1px solid var(--border); color: var(--muted);
-    border-radius: 6px; padding: 2px 8px; cursor: pointer; font: inherit; }
-  .tabs button.on { color: var(--text); border-color: var(--accent); }
-  .status { font-size: 12px; color: var(--muted); padding: 4px 10px; min-height: 22px; }
+  header button { background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 2px 9px; cursor: pointer; font: inherit; }
+  header button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: rgba(88,166,255,.12); }
+
+  .status { font-size: 12px; color: var(--muted); padding: 0 10px; min-height: 0; }
+  .status:not(:empty) { padding: 4px 10px; border-bottom: 1px solid var(--border); }
   .status.busy { color: var(--warn); }
   .status .think { display: block; color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; direction: rtl; text-align: left; }
-  .feed { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-  .msg { padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
-  .msg.user { background: rgba(31,111,235,.18); border: 1px solid rgba(31,111,235,.4); align-self: flex-end; max-width: 90%; }
-  .msg.assistant { background: rgba(35,134,54,.14); border: 1px solid rgba(35,134,54,.4); }
-  .msg.note { color: var(--muted); font-style: italic; font-size: 12px; background: none; padding: 0 4px; }
-  .msg.tool { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); background: rgba(110,118,129,.12);
-    border-left: 3px solid var(--tool); cursor: pointer; }
-  .msg.tool .out { display: none; margin-top: 4px; max-height: 300px; overflow: auto; color: var(--text); }
-  .msg.tool.open .out { display: block; }
-  .msg.pending { opacity: .75; }
-  .journal .line { font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; color: var(--muted); }
-  .journal .line .who { font-weight: 600; }
-  .journal .line.player .who { color: var(--accent); }
-  .journal .line.companion .who { color: #3fb950; }
+
+  .feed { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .feed.no-chat .c, .feed.no-journal .j { display: none; }
+
+  .msg { border-radius: 10px; padding: 6px 10px 8px; max-width: 92%; word-wrap: break-word; }
+  .msg .who { font-size: 11px; font-weight: 600; letter-spacing: .02em; margin-bottom: 2px; }
+  .msg .who time { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .msg.user { align-self: flex-end; background: var(--you-bg); border: 1px solid var(--you-border); }
+  .msg.user .who { color: #9ecbff; text-align: right; }
+  .msg.assistant { align-self: flex-start; background: var(--ai-bg); border: 1px solid var(--ai-border);
+    border-left-width: 4px; }
+  .msg.assistant .who { color: var(--companion); }
+  .msg.pending { opacity: .8; }
+  .note { align-self: center; color: var(--muted); font-size: 12px; font-style: italic; }
+
+  .body p { margin: 0 0 6px; } .body p:last-child { margin-bottom: 0; }
+  .body ul, .body ol { margin: 2px 0 6px; padding-left: 20px; }
+  .body h1, .body h2, .body h3, .body h4 { font-size: 14px; margin: 8px 0 4px; }
+  .body code { font: 12px ui-monospace, monospace; background: rgba(110,118,129,.25); padding: 1px 4px; border-radius: 4px; }
+  .body pre { background: rgba(0,0,0,.35); padding: 6px 8px; border-radius: 6px; overflow-x: auto; margin: 4px 0; }
+  .body pre code { background: none; padding: 0; }
+  .body table { border-collapse: collapse; margin: 4px 0 6px; font-size: 12px; display: block; overflow-x: auto; }
+  .body th, .body td { border: 1px solid var(--border); padding: 2px 6px; text-align: left; }
+  .body th { background: rgba(110,118,129,.18); }
+
+  .tool { align-self: flex-start; max-width: 92%; font: 12px/1.4 ui-monospace, monospace; color: var(--muted);
+    border-left: 3px solid var(--faint); padding: 2px 8px; cursor: pointer; margin-left: 6px; }
+  .tool.pending { color: var(--warn); }
+  .tool .out { display: none; margin-top: 4px; max-height: 320px; overflow: auto; color: var(--text);
+    white-space: pre; background: rgba(0,0,0,.3); padding: 6px; border-radius: 4px; }
+  .tool.open .out { display: block; }
+
+  .jl { font: 12px/1.35 ui-monospace, monospace; color: var(--faint); white-space: pre-wrap; padding-left: 4px; }
+  .jl .actor { font-weight: 600; }
+  .jl.by-player .actor { color: var(--accent); }
+  .jl.by-companion .actor { color: var(--companion); }
+  .jl.by-game .actor { color: var(--muted); }
+  .jl .gt { color: #484f58; }
+
   form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
   textarea { flex: 1; resize: none; height: 60px; background: var(--bg); color: var(--text);
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
-  form button { background: var(--companion); color: #fff; border: 0; border-radius: 6px; padding: 0 14px; cursor: pointer; font: inherit; }
+  form button { background: #238636; color: #fff; border: 0; border-radius: 6px; padding: 0 14px; cursor: pointer; font: inherit; }
   @media (max-width: 800px) {
     .layout { flex-direction: column; }
     .game { flex: none; height: 55vh; }
@@ -60,15 +89,12 @@
   <aside class="side" id="side">
     <header>
       <span class="title">Companion</span>
-      <div class="tabs">
-        <button data-view="chat" class="on">Chat</button>
-        <button data-view="journal">Journal</button>
-      </div>
-      <button id="collapse" title="Collapse">⇥</button>
+      <button id="showChat" aria-pressed="true" title="Show chat messages">Chat</button>
+      <button id="showJournal" aria-pressed="true" title="Show game journal">Journal</button>
+      <button id="collapse" title="Collapse sidebar">⇥</button>
     </header>
     <div class="status" id="status"></div>
-    <div class="feed" id="chat"></div>
-    <div class="feed journal" id="journal" hidden></div>
+    <div class="feed" id="feed"></div>
     <form id="send">
       <textarea id="text" placeholder="Message the companion… (Enter to send, Shift+Enter for a new line)"></textarea>
       <button>Send</button>
@@ -76,55 +102,74 @@
   </aside>
 </div>
 <script>
-const vncUrl = '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&show_dot=1&path=websockify';
-document.getElementById('vnc').src = vncUrl;
+document.getElementById('vnc').src =
+  '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&show_dot=1&path=websockify';
 
-const chatEl = document.getElementById('chat');
-const journalEl = document.getElementById('journal');
+const feed = document.getElementById('feed');
 const statusEl = document.getElementById('status');
 const seen = new Set();
 let streaming = null;
 let reasoning = '';
 
-function atBottom(el) { return el.scrollHeight - el.scrollTop - el.clientHeight < 60; }
-function stick(el, f) { const b = atBottom(el); f(); if (b) el.scrollTop = el.scrollHeight; }
+// ---- Feed: one chronological timeline of chat and journal -------------------------------------
+
+function atBottom() { return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80; }
+
+/** Insert a node in time order (items mostly arrive in order, so scan from the end). */
+function place(node, t) {
+  node.dataset.t = t;
+  const stick = atBottom();
+  let after = feed.lastElementChild;
+  while (after && after !== streaming && Number(after.dataset.t) > t) after = after.previousElementSibling;
+  if (streaming && after === streaming) after = streaming.previousElementSibling;
+  if (after) after.after(node); else feed.prepend(node);
+  if (streaming) feed.append(streaming);
+  if (stick) feed.scrollTop = feed.scrollHeight;
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function clock(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+
+function bubble(role, content, t) {
+  const d = el('div', 'msg c ' + role);
+  const who = el('div', 'who', role === 'user' ? 'You' : 'Companion');
+  who.append(el('time', '', clock(t)));
+  const body = el('div', 'body');
+  body.innerHTML = markdown(content || '');
+  d.append(who, body);
+  return d;
+}
 
 function addChat(m) {
   if (seen.has('c' + m.id)) return;
   seen.add('c' + m.id);
-  stick(chatEl, () => {
-    if (streaming) { streaming.remove(); streaming = null; }
-    if (m.role === 'assistant') {
-      if (m.content) chatEl.append(el('div', 'msg assistant', m.content));
-      for (const c of m.tool_calls || []) {
-        const d = el('div', 'msg tool pending', `▸ ${c.function.name}(${fmtArgs(c.function.arguments)})`);
-        d.dataset.call = c.id;
-        d.onclick = () => d.classList.toggle('open');
-        chatEl.append(d);
-      }
-    } else if (m.role === 'tool') {
-      const d = [...chatEl.querySelectorAll('.msg.tool')].find(x => x.dataset.call === m.tool_call_id);
-      const target = d || chatEl.appendChild(el('div', 'msg tool', `▸ ${m.name}`));
-      target.classList.remove('pending');
-      target.firstChild.textContent += '  → ' + summary(m.content);
-      const out = el('div', 'out', m.content);
-      target.append(out);
-      target.onclick = () => target.classList.toggle('open');
-    } else {
-      chatEl.append(el('div', 'msg ' + m.role, m.content));
+  if (streaming && m.role === 'assistant') { streaming.remove(); streaming = null; }
+  if (m.role === 'user' || (m.role === 'assistant' && m.content)) place(bubble(m.role, m.content, m.time), m.time);
+  if (m.role === 'note') place(el('div', 'note c', m.content), m.time);
+  if (m.role === 'assistant') {
+    for (const c of m.tool_calls || []) {
+      const d = el('div', 'tool c pending', `▸ ${c.function.name}(${fmtArgs(c.function.arguments)})`);
+      d.dataset.call = c.id;
+      d.onclick = () => d.classList.toggle('open');
+      place(d, m.time + 0.0001);
     }
-  });
+  }
+  if (m.role === 'tool') {
+    let d = [...feed.querySelectorAll('.tool')].find(x => x.dataset.call === m.tool_call_id);
+    if (!d) { d = el('div', 'tool c', `▸ ${m.name}`); d.onclick = () => d.classList.toggle('open'); place(d, m.time); }
+    d.classList.remove('pending');
+    d.firstChild.textContent += '  → ' + summary(m.content);
+    d.append(el('div', 'out', m.content));
+  }
 }
 
 function addJournal(e) {
   if (seen.has('j' + e.id)) return;
   seen.add('j' + e.id);
-  stick(journalEl, () => {
-    const d = el('div', 'line ' + e.actor, '');
-    const who = el('span', 'who', e.actor);
-    d.append(who, document.createTextNode(': ' + e.text));
-    journalEl.append(d);
-  });
+  const d = el('div', 'jl j by-' + e.actor);
+  d.append(el('span', 'actor', e.actor), document.createTextNode(' ' + e.text));
+  if (e.game_time) d.title = e.game_time;
+  place(d, e.time);
 }
 
 function summary(s) {
@@ -133,9 +178,57 @@ function summary(s) {
   return first.length > 60 ? first.slice(0, 60) + '…' : first;
 }
 function fmtArgs(a) {
-  try { return Object.values(JSON.parse(a || '{}')).map(v => JSON.stringify(v)).join(', '); } catch { return a; }
+  try { return Object.entries(JSON.parse(a || '{}')).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', '); } catch { return a; }
 }
-function el(tag, cls, text) { const e = document.createElement(tag); e.className = cls; if (text) e.textContent = text; return e; }
+
+// ---- Minimal markdown (the model writes bold, lists, tables, code) -----------------------------
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+}
+function markdown(src) {
+  const lines = src.replace(/\r/g, '').split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^```/.test(line)) {
+      const code = [];
+      for (i++; i < lines.length && !/^```/.test(lines[i]); i++) code.push(lines[i]);
+      out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); i++; continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      const rows = [];
+      for (; i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i]); i++) rows.push(lines[i]);
+      const cells = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const body = rows.filter(r => !/^\s*\|[\s:|-]+\|\s*$/.test(r));
+      let html = '<table>';
+      body.forEach((r, n) => { const t = n === 0 && rows.length > 1 && /^\s*\|[\s:|-]+\|\s*$/.test(rows[1]) ? 'th' : 'td';
+        html += '<tr>' + cells(r).map(c => `<${t}>${inline(c)}</${t}>`).join('') + '</tr>'; });
+      out.push(html + '</table>'); continue;
+    }
+    const h = line.match(/^(#{1,4})\s+(.*)/);
+    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items = [];
+      for (; i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i]); i++) items.push(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, ''));
+      out.push(`<${ordered ? 'ol' : 'ul'}>` + items.map(x => `<li>${inline(x)}</li>`).join('') + `</${ordered ? 'ol' : 'ul'}>`); continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const para = [];
+    for (; i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*\||\s*([-*]|\d+\.)\s)/.test(lines[i]); i++) para.push(lines[i]);
+    if (!para.length) { para.push(line); i++; }
+    out.push('<p>' + para.map(inline).join('<br>') + '</p>');
+  }
+  return out.join('');
+}
+
+// ---- Status, streaming, filters ---------------------------------------------------------------
 
 function setBusy(b) {
   reasoning = '';
@@ -145,19 +238,46 @@ function setBusy(b) {
 function showReasoning(t) {
   reasoning = (reasoning + t).slice(-300);
   statusEl.textContent = 'Companion is thinking…';
-  const s = el('span', 'think', '');
-  // Show the tail of the thought; bdi keeps punctuation in order inside the rtl ellipsis trick.
+  const s = el('span', 'think');
   const bdi = document.createElement('bdi'); bdi.textContent = reasoning.replace(/\s+/g, ' ');
   s.append(bdi); statusEl.append(s);
 }
+function streamDelta(t) {
+  const stick = atBottom();
+  if (!streaming) {
+    streaming = bubble('assistant', '', Date.now() / 1000);
+    streaming.classList.add('pending');
+    streaming.dataset.raw = '';
+    feed.append(streaming);
+  }
+  streaming.dataset.raw += t;
+  streaming.querySelector('.body').innerHTML = markdown(streaming.dataset.raw);
+  if (stick) feed.scrollTop = feed.scrollHeight;
+}
+function dropStreaming() { if (streaming) { streaming.remove(); streaming = null; } }
+
+function toggle(button, cls) {
+  const on = button.getAttribute('aria-pressed') !== 'true';
+  button.setAttribute('aria-pressed', on);
+  feed.classList.toggle(cls, !on);
+  feed.scrollTop = feed.scrollHeight;
+  try { localStorage.setItem(cls, on ? '1' : '0'); } catch {}
+}
+for (const [id, cls] of [['showChat', 'no-chat'], ['showJournal', 'no-journal']]) {
+  const b = document.getElementById(id);
+  b.onclick = () => toggle(b, cls);
+  try { if (localStorage.getItem(cls) === '0') toggle(b, cls); } catch {}
+}
+document.getElementById('collapse').onclick = () => document.getElementById('side').classList.toggle('collapsed');
+
+// ---- Data -------------------------------------------------------------------------------------
 
 async function load() {
   const h = await (await fetch('/api/history')).json();
   h.chat.forEach(addChat);
   h.journal.forEach(addJournal);
   setBusy(h.busy);
-  chatEl.scrollTop = chatEl.scrollHeight;
-  journalEl.scrollTop = journalEl.scrollHeight;
+  feed.scrollTop = feed.scrollHeight;
 }
 
 function connect() {
@@ -168,12 +288,9 @@ function connect() {
     else if (m.type === 'journal') addJournal(m.entry);
     else if (m.type === 'status') setBusy(m.busy);
     else if (m.type === 'reasoning') showReasoning(m.text);
-    else if (m.type === 'thinking') { reasoning = ''; if (streaming) { streaming.remove(); streaming = null; } }
-    else if (m.type === 'delta') stick(chatEl, () => {
-      if (!streaming) { streaming = el('div', 'msg assistant pending', ''); chatEl.append(streaming); }
-      streaming.textContent += m.text;
-    });
-    else if (m.type === 'discard') { if (streaming) { streaming.remove(); streaming = null; } }
+    else if (m.type === 'thinking') { reasoning = ''; dropStreaming(); }
+    else if (m.type === 'delta') streamDelta(m.text);
+    else if (m.type === 'discard') dropStreaming();
   };
   es.onerror = () => { es.close(); setTimeout(() => { load(); connect(); }, 3000); };
 }
@@ -190,12 +307,6 @@ document.getElementById('send').onsubmit = async ev => {
 document.getElementById('text').onkeydown = ev => {
   if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); document.getElementById('send').requestSubmit(); }
 };
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-  chatEl.hidden = b.dataset.view !== 'chat';
-  journalEl.hidden = b.dataset.view !== 'journal';
-});
-document.getElementById('collapse').onclick = () => document.getElementById('side').classList.toggle('collapsed');
 
 load().then(connect);
 </script>
