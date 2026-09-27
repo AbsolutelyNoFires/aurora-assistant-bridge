@@ -51,6 +51,9 @@ def describe(ev: dict) -> str | None:
         if value in ("checked", "unchecked"):
             return f"{'ticked' if value == 'checked' else 'unticked'} {what}"
         return f"{value} in {what}"
+    if t == "doubleclick":
+        shown = (value or "").replace("\\", " > ")
+        return f'double-clicked "{shown}" in {what}' if shown else f"double-clicked {what}"
     if t == "select":
         shown = (value or "").replace("\\", " > ")
         return f'selected "{shown}" in {what}'
@@ -159,8 +162,9 @@ class ChangeExtractor:
         return out
 
 
-def _flatten(node: dict, state: dict):
-    """control name|label -> short value string, for controls that carry information."""
+def _flatten(node: dict, state: dict, raw: bool = False):
+    """control name|label -> value string, for controls that carry information.
+    Multi-line values are joined into one line unless raw."""
     name = node.get("name")
     kind = node.get("kind")
     value = None
@@ -185,10 +189,10 @@ def _flatten(node: dict, state: dict):
         names = [r[0] if r[0].strip() or len(r) < 2 else r[1] for r in rows[:3]]
         value = f'{node.get("rowCount", 0)} rows' + (": " + ", ".join(names) + (", …" if len(rows) > 3 else "") if names else "")
     if name and value is not None:
-        v = " / ".join(l.strip() for l in str(value).splitlines() if l.strip())
+        v = str(value) if raw else " / ".join(l.strip() for l in str(value).splitlines() if l.strip())
         state[f'{name}|{node.get("label") or ""}'] = v
     for child in node.get("children", []):
-        _flatten(child, state)
+        _flatten(child, state, raw)
 
 
 def _clip(v, n: int) -> str:
