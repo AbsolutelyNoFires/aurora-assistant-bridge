@@ -8,7 +8,7 @@ An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It 
   enough fuel for 1,000 billion km"*. Works with any OpenAI-compatible model server, local or hosted.
 - **An MCP server** exposing the same game tools to MCP clients such as Claude Desktop or Claude Code.
 
-**Version 0.2.0.** Python only: Windows, Linux and macOS users all install it with pip.
+**Version 0.2.1.** Python only: Windows, Linux and macOS users all install it with pip.
 
 ## Install
 
@@ -25,7 +25,7 @@ leave it wherever your browser saved it (usually Downloads) and install it from 
 *Windows* (Command Prompt; get Python from [python.org](https://www.python.org/downloads/) if `py` is not found):
 
 ```bat
-py -m pip install "%USERPROFILE%\Downloads\aurora_assistant_bridge-0.2.0-py3-none-any.whl"
+py -m pip install "%USERPROFILE%\Downloads\aurora_assistant_bridge-0.2.1-py3-none-any.whl"
 py -m aurora_assistant_bridge
 ```
 
@@ -34,11 +34,11 @@ py -m aurora_assistant_bridge
 ```sh
 sudo apt install pipx        # Debian/Ubuntu; macOS: brew install pipx
 pipx ensurepath              # then open a new terminal
-pipx install ~/Downloads/aurora_assistant_bridge-0.2.0-py3-none-any.whl
+pipx install ~/Downloads/aurora_assistant_bridge-0.2.1-py3-none-any.whl
 aurora-assistant
 ```
 
-Change `0.2.0` to the version you downloaded. To upgrade later, install the newer file the same way
+Change `0.2.1` to the version you downloaded. To upgrade later, install the newer file the same way
 (with pipx: `pipx install --force <file>`).
 
 ## Use
@@ -56,7 +56,8 @@ under Proton the game cannot start Linux programs, so start it from the script t
 ### Connect a model
 
 Press **Settings** on the chat page: set the endpoint of any OpenAI-compatible server, press **Load models** (this
-also tests the connection) and pick a model, and set the temperature and max tokens per reply. Changes apply to the
+also tests the connection) and pick a model from the drop-down (or **Other…** to type a name), and set the
+temperature and max tokens per reply. Changes apply to the
 next message and are saved in the config file.
 
 Or edit the config file directly (run `aurora-assistant config` to see where it is —

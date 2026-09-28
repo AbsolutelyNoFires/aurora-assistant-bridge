@@ -86,6 +86,9 @@
   dialog .row { display: flex; gap: 6px; align-items: center; }
   dialog .row input[type=range] { flex: 1; }
   dialog .row input[type=number] { width: 90px; }
+  dialog select { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font: inherit; }
+  dialog #sModel { margin-top: 6px; }
   dialog .row button { white-space: nowrap; }
   dialog .hint { font-size: 12px; color: var(--faint); margin-top: 3px; }
   dialog .msg-line { font-size: 12px; min-height: 18px; margin-top: 10px; }
@@ -119,16 +122,16 @@
     <h2>Model settings</h2>
     <label for="sBase">Endpoint (OpenAI-compatible server)</label>
     <input type="text" id="sBase" placeholder="http://localhost:1234" autocomplete="off">
-    <div class="hint">LM Studio http://localhost:1234 · Ollama http://localhost:11434 · llama.cpp http://localhost:8080 · OpenRouter https://openrouter.ai/api</div>
+    <div class="hint">LM Studio http://localhost:1234 · Ollama http://localhost:11434 · llama.cpp http://localhost:8080 · OpenRouter https://openrouter.ai/api (try adding /v1)</div>
     <label for="sKey">API key</label>
     <input type="password" id="sKey" autocomplete="off">
     <div class="hint" id="sKeyHint">Only needed for hosted services.</div>
     <label for="sModel">Model</label>
     <div class="row">
-      <input type="text" id="sModel" list="sModels" autocomplete="off">
-      <datalist id="sModels"></datalist>
+      <select id="sModelSelect"></select>
       <button type="button" id="sLoad" title="Load the server's model list (also tests the connection)">Load models</button>
     </div>
+    <input type="text" id="sModel" placeholder="Model name as the server knows it" autocomplete="off" hidden>
     <label for="sTemp">Temperature</label>
     <div class="row">
       <input type="range" id="sTempRange" min="0" max="2" step="0.05">
@@ -161,7 +164,8 @@ function sMsg(text, cls) { $('sMsg').textContent = text; $('sMsg').className = '
 $('openSettings').onclick = async () => {
   const s = await (await fetch('/api/settings')).json();
   $('sBase').value = s.llm_base_url;
-  $('sModel').value = s.llm_model;
+  savedModel = s.llm_model;
+  fillModels([], savedModel);
   $('sTemp').value = $('sTempRange').value = s.llm_temperature;
   $('sMax').value = s.llm_max_tokens;
   $('sKey').value = '';
@@ -170,29 +174,56 @@ $('openSettings').onclick = async () => {
   sMsg(s.env_overridden.length
     ? `Set by environment variables, so saved values won't survive a restart: ${s.env_overridden.join(', ')}` : '',
     s.env_overridden.length ? 'error' : '');
-  $('sModels').replaceChildren();
   dlg.showModal();
+  if (s.llm_base_url) loadModels(true);
 };
 $('sCancel').onclick = () => dlg.close();
 $('sTempRange').oninput = () => { $('sTemp').value = $('sTempRange').value; };
 $('sTemp').oninput = () => { $('sTempRange').value = $('sTemp').value; };
-$('sLoad').onclick = async () => {
+// The model is chosen from a real drop-down: the server's models, the saved model (even if the server
+// does not list it) and "Other…" for typing a name by hand.
+const OTHER = '\u0000other';
+let savedModel = '';
+function fillModels(models, current) {
+  const sel = $('sModelSelect');
+  const opts = [...models];
+  const keepCurrent = current && !models.includes(current) && !(models.length && current === 'local');
+  if (keepCurrent) opts.unshift(current);
+  sel.replaceChildren(...opts.map(m => {
+    const o = el('option', '', m + (keepCurrent && m === current ? (models.length ? '  (saved, not listed by the server)' : '') : ''));
+    o.value = m; return o;
+  }));
+  const other = el('option', '', 'Other… (type a name)'); other.value = OTHER; sel.append(other);
+  sel.value = opts.includes(current) ? current : (opts[0] ?? OTHER);
+  $('sModel').value = '';
+  $('sModel').hidden = sel.value !== OTHER;
+}
+$('sModelSelect').onchange = () => {
+  $('sModel').hidden = $('sModelSelect').value !== OTHER;
+  if (!$('sModel').hidden) $('sModel').focus();
+};
+function chosenModel() {
+  return $('sModelSelect').value === OTHER ? $('sModel').value.trim() : $('sModelSelect').value;
+}
+async function loadModels(quiet) {
   sMsg('Contacting the server…');
   const q = new URLSearchParams({ base_url: $('sBase').value.trim() });
   if ($('sKey').value) q.set('api_key', $('sKey').value);
   const r = await fetch('/api/models?' + q);
   const d = await r.json();
-  if (!r.ok) return sMsg('Could not load models: ' + d.error, 'error');
-  $('sModels').replaceChildren(...d.models.map(m => { const o = document.createElement('option'); o.value = m; return o; }));
-  if (d.models.length === 1 && !$('sModel').value) $('sModel').value = d.models[0];
-  sMsg(`Connected: ${d.models.length} model(s). Pick one in the Model box.`, 'ok');
-};
+  if (!r.ok) return sMsg((quiet ? 'Server not reachable: ' : 'Could not load models: ') + d.error, 'error');
+  const current = $('sModelSelect').value === OTHER ? ($('sModel').value.trim() || savedModel) : $('sModelSelect').value;
+  fillModels(d.models, current);
+  sMsg(`Connected: ${d.models.length} model${d.models.length === 1 ? '' : 's'} available.`, 'ok');
+}
+$('sLoad').onclick = () => loadModels(false);
 $('settingsForm').onsubmit = async ev => {
   ev.preventDefault();
   const body = {
-    llm_base_url: $('sBase').value.trim(), llm_model: $('sModel').value.trim(),
+    llm_base_url: $('sBase').value.trim(), llm_model: chosenModel(),
     llm_temperature: $('sTemp').value, llm_max_tokens: $('sMax').value || 0,
   };
+  if (!body.llm_model) return sMsg('Choose a model (or type one under Other…).', 'error');
   if ($('sKey').value) body.llm_api_key = $('sKey').value;
   const r = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const d = await r.json();
