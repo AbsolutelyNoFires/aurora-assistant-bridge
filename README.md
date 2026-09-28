@@ -12,26 +12,46 @@ An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It 
 
 ## Install
 
-You need the **Aurora Assistant API** patch installed in Aurora (see its README), and Python 3.11+.
+You need two things: the **game patch** in Aurora, and this **bridge** installed in Python.
 
-```sh
-pip install aurora_assistant_bridge-<version>-py3-none-any.whl   # from the releases page
-# or from a checkout:
-pip install .
+**1. The game patch.** Download `aurora-assistant-api-<version>.zip` from the
+[aurora-assistant-api releases](http://forgejo/yecenia/aurora-assistant-api/releases) and unzip it into your Aurora
+folder, so that `Patches/AuroraAssistantApi/` appears there. (Requires AuroraPatch and its Lib patch.)
+
+**2. The bridge.** Download the newest `aurora_assistant_bridge-<version>-py3-none-any.whl` from the
+[releases page](http://forgejo/yecenia/aurora-assistant-bridge/releases). It does *not* go in the Aurora folder —
+leave it wherever your browser saved it (usually Downloads) and install it from there. You need Python 3.11 or newer.
+
+*Windows* (Command Prompt; get Python from [python.org](https://www.python.org/downloads/) if `py` is not found):
+
+```bat
+py -m pip install "%USERPROFILE%\Downloads\aurora_assistant_bridge-0.2.0-py3-none-any.whl"
+py -m aurora_assistant_bridge
 ```
 
-This installs the `aurora-assistant` command. On Windows, if `aurora-assistant` is not found, run
-`python -m aurora_assistant_bridge` instead, or add Python's `Scripts` folder to your PATH.
+*Linux / macOS* (uses [pipx](https://pipx.pypa.io/), which installs apps without touching your system Python):
+
+```sh
+sudo apt install pipx        # Debian/Ubuntu; macOS: brew install pipx
+pipx ensurepath              # then open a new terminal
+pipx install ~/Downloads/aurora_assistant_bridge-0.2.0-py3-none-any.whl
+aurora-assistant
+```
+
+Change `0.2.0` to the version you downloaded. To upgrade later, install the newer file the same way
+(with pipx: `pipx install --force <file>`).
 
 ## Use
 
 1. Start Aurora through AuroraPatch as usual.
-2. Run `aurora-assistant`. The chat opens in your browser.
+2. Run `aurora-assistant` (Windows: `py -m aurora_assistant_bridge`). The chat opens in your browser at
+   <http://localhost:47110/>.
+3. Press **Settings** and connect a model (below).
 
-To start it together with the game on Windows, put `aurora-assistant` in the patch's **Command to run when Aurora
-starts** (AuroraPatch launcher → AuroraAssistantApi → Change settings). On Linux under Proton the game cannot start
-Linux programs, so start `aurora-assistant` from the script that launches Aurora. If a bridge is already running, starting another one
-just opens the chat page. The bridge can also be started before the game; it connects when the game comes up.
+The bridge can be started before or after the game; it connects when the game comes up. Starting it again while it
+is running just opens the chat page. To start it with the game on Windows, put `py -m aurora_assistant_bridge` in the
+patch's **Command to run when Aurora starts** (AuroraPatch launcher → AuroraAssistantApi → Change settings); on Linux
+under Proton the game cannot start Linux programs, so start it from the script that launches Aurora.
 
 ### Connect a model
 
