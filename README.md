@@ -16,11 +16,14 @@ The application also packs its own MCP server, so you can keep working from your
 
 <video src="https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/answers-questions-from-menus.webm" controls width="100%"></video>
 
+[Qwen-retrieves-info-from-menus.webm](https://github.com/user-attachments/assets/c1e522d2-1dcf-4883-9c31-f484f6f8e118)
+
 [Download the video](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/answers-questions-from-menus.webm)
 
 **Giving orders to task groups** (3½ min). Qwen is given a multi-stage command - find tugs, find fuel harvesters, and move the tugs to their gas giant. Qwen needs prompting to locate both classes in the list - at first confusing the Wreckage Harvesters as the intended target - but finally manages to discover the harvesting system, and command the Tug groups to their system ingress.
 
 <video src="https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
+
 
 [Download the video](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm)
 
