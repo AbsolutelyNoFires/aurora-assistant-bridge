@@ -28,8 +28,9 @@ This installs the `aurora-assistant` command. On Windows, if `aurora-assistant` 
 1. Start Aurora through AuroraPatch as usual.
 2. Run `aurora-assistant`. The chat opens in your browser.
 
-To start it together with the game, put `aurora-assistant` in the patch's **Command to run when Aurora starts**
-(AuroraPatch launcher → AuroraAssistantApi → Change settings). If a bridge is already running, starting another one
+To start it together with the game on Windows, put `aurora-assistant` in the patch's **Command to run when Aurora
+starts** (AuroraPatch launcher → AuroraAssistantApi → Change settings). On Linux under Proton the game cannot start
+Linux programs, so start `aurora-assistant` from the script that launches Aurora. If a bridge is already running, starting another one
 just opens the chat page. The bridge can also be started before the game; it connects when the game comes up.
 
 ### Connect a model
