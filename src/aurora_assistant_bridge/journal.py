@@ -14,7 +14,7 @@ from .store import Store
 
 log = logging.getLogger("journal")
 
-ACTORS = {"user": "player", "api": "companion", "game": "game"}
+ACTORS = {"user": "player", "api": "assistant", "game": "game"}
 PREFIXES = ("lstv", "cmd", "txt", "cbo", "chk", "rdo", "lst", "lv", "tv", "tab", "lbl", "flp", "pnl", "opt", "num")
 
 

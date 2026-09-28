@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aurora Companion</title>
+<title>Aurora Assistant</title>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --faint: #6e7681;
@@ -20,6 +20,9 @@
   .side { width: 420px; display: flex; flex-direction: column; background: var(--panel);
     border-left: 1px solid var(--border); min-height: 0; }
   .side.collapsed { width: 40px; }
+  /* Without a streamed game desktop the page is just the chat. */
+  body.chat-only .game, body.chat-only #collapse { display: none; }
+  body.chat-only .side { width: 100%; max-width: 980px; margin: 0 auto; border-left: 0; }
   .side.collapsed > :not(header), .side.collapsed header > :not(#collapse) { display: none; }
 
   header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
@@ -69,7 +72,7 @@
   .jl { font: 12px/1.35 ui-monospace, monospace; color: var(--faint); white-space: pre-wrap; padding-left: 4px; }
   .jl .actor { font-weight: 600; }
   .jl.by-player .actor { color: var(--accent); }
-  .jl.by-companion .actor { color: var(--companion); }
+  .jl.by-assistant .actor, .jl.by-companion .actor { color: var(--companion); }
   .jl.by-game .actor { color: var(--muted); }
   .jl .gt { color: #484f58; }
 
@@ -90,24 +93,28 @@
   <div class="game"><iframe id="vnc" title="Aurora desktop"></iframe></div>
   <aside class="side" id="side">
     <header>
-      <span class="title">Companion</span>
+      <span class="title">Aurora Assistant</span>
       <button id="showChat" aria-pressed="true" title="Show chat messages">Chat</button>
       <button id="showJournal" aria-pressed="true" title="Show game journal">Journal</button>
-      <button id="clear" title="Clear the chat and journal: the companion starts with a fresh context">Clear</button>
+      <button id="clear" title="Clear the chat and journal: the assistant starts with a fresh context">Clear</button>
       <button id="collapse" title="Collapse sidebar">⇥</button>
     </header>
     <div class="status" id="status"></div>
     <div class="feed" id="feed"></div>
     <form id="send">
-      <textarea id="text" placeholder="Message the companion… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <textarea id="text" placeholder="Message the assistant… (Enter to send, Shift+Enter for a new line)"></textarea>
       <button id="sendBtn">Send</button>
-      <button id="stop" type="button" title="Stop the companion (also stops the model)" hidden>Stop</button>
+      <button id="stop" type="button" title="Stop the assistant (also stops the model)" hidden>Stop</button>
     </form>
   </aside>
 </div>
 <script>
-document.getElementById('vnc').src =
-  '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&show_dot=1&path=websockify';
+fetch('/api/config').then(r => r.json()).then(c => {
+  if (c.vnc) document.getElementById('vnc').src =
+    '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&show_dot=1&path=websockify';
+  else document.body.classList.add('chat-only');
+  document.querySelector('header .title').textContent = 'Aurora Assistant' + (c.llm ? '' : ' — no model configured');
+});
 
 const feed = document.getElementById('feed');
 const statusEl = document.getElementById('status');
@@ -136,7 +143,7 @@ function clock(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: '2-
 
 function bubble(role, content, t) {
   const d = el('div', 'msg c ' + role);
-  const who = el('div', 'who', role === 'user' ? 'You' : 'Companion');
+  const who = el('div', 'who', role === 'user' ? 'You' : 'Assistant');
   who.append(el('time', '', clock(t)));
   const body = el('div', 'body');
   body.innerHTML = markdown(content || '');
@@ -237,12 +244,12 @@ function markdown(src) {
 function setBusy(b) {
   document.getElementById('stop').hidden = !b;
   reasoning = '';
-  statusEl.textContent = b ? 'Companion is working…' : '';
+  statusEl.textContent = b ? 'Assistant is working…' : '';
   statusEl.classList.toggle('busy', b);
 }
 function showReasoning(t) {
   reasoning = (reasoning + t).slice(-300);
-  statusEl.textContent = 'Companion is thinking…';
+  statusEl.textContent = 'Assistant is thinking…';
   const s = el('span', 'think');
   const bdi = document.createElement('bdi'); bdi.textContent = reasoning.replace(/\s+/g, ' ');
   s.append(bdi); statusEl.append(s);
@@ -311,7 +318,7 @@ document.getElementById('send').onsubmit = async ev => {
   if (r.ok) addChat(await r.json());
 };
 document.getElementById('clear').onclick = async () => {
-  if (!confirm('Clear the chat and journal for everyone? The companion will start with a fresh context.')) return;
+  if (!confirm('Clear the chat and journal for everyone? The assistant will start with a fresh context.')) return;
   await fetch('/api/clear', { method: 'POST' });
 };
 document.getElementById('stop').onclick = async () => {

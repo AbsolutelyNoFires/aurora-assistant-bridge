@@ -1,4 +1,4 @@
-"""Async client for the in-game Companion patch HTTP API."""
+"""Async client for the Aurora Assistant API patch."""
 
 from urllib.parse import quote
 

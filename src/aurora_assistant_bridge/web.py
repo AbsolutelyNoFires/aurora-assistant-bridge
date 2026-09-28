@@ -1,4 +1,4 @@
-"""Web UI: the shared game desktop (noVNC) beside the companion chat, plus an SSE update stream."""
+"""Web UI: the shared game desktop (noVNC) beside the assistant chat (optional), plus an SSE update stream."""
 
 import asyncio
 import json
@@ -7,16 +7,23 @@ from pathlib import Path
 import aiohttp
 from aiohttp import web
 
+from . import __version__
 from .agent import Agent
+from .config import Config
 from .hub import Hub
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
-NOVNC = Path("/usr/share/novnc")
 
 
-def make_app(store: Store, hub: Hub, agent: Agent, vnc_ws_url: str) -> web.Application:
+def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Application:
     app = web.Application()
+    vnc_ws_url = cfg.vnc_ws_url
+    vnc = bool(vnc_ws_url) and Path(cfg.novnc_dir).is_dir()
+
+    async def config(request: web.Request):
+        return web.json_response({"app": "aurora-assistant-bridge", "version": __version__, "vnc": vnc,
+                                  "llm": cfg.llm_model if cfg.llm_enabled else None})
 
     async def index(request: web.Request):
         return web.FileResponse(STATIC / "index.html")
@@ -78,9 +85,11 @@ def make_app(store: Store, hub: Hub, agent: Agent, vnc_ws_url: str) -> web.Appli
         return resp
 
     app.router.add_get("/", index)
-    app.router.add_get("/websockify", websockify)
-    app.router.add_get("/novnc/websockify", websockify)  # noVNC resolves its path relative to vnc.html
-    app.router.add_static("/novnc/", NOVNC, follow_symlinks=True)
+    app.router.add_get("/api/config", config)
+    if vnc:
+        app.router.add_get("/websockify", websockify)
+        app.router.add_get("/novnc/websockify", websockify)  # noVNC resolves its path relative to vnc.html
+        app.router.add_static("/novnc/", Path(cfg.novnc_dir), follow_symlinks=True)
     app.router.add_get("/api/history", history)
     app.router.add_post("/api/chat", chat)
     app.router.add_post("/api/stop", stop)

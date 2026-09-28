@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS journal (
     id INTEGER PRIMARY KEY,
     time REAL NOT NULL,
     game_time TEXT,
-    actor TEXT NOT NULL,          -- player | companion | game
+    actor TEXT NOT NULL,          -- player | assistant | game (older rows: companion)
     text TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS chat (

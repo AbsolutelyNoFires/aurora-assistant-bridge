@@ -1,4 +1,4 @@
-"""The companion loop: one LLM call at a time, woken by chat, journal activity or a timer.
+"""The assistant loop: one LLM call at a time, woken by chat, journal activity or a timer.
 
 Context = system prompt + the chat transcript interleaved (by time) with the journal, each truncated
 separately. Truncation happens in large steps so the prompt prefix stays stable between calls, which
@@ -20,12 +20,13 @@ from .tools import TOOLS, TOOL_NAMES, run_tool, text_mode_instructions
 
 log = logging.getLogger("agent")
 
-SYSTEM_PROMPT = """You are a companion to the player of Aurora 4X (C# edition), a deep 4X space strategy game. \
-You and the player share one game running on a shared desktop. You can see what the player does through the \
-game journal, read any open window as text, and operate the game's windows yourself with tools.
+SYSTEM_PROMPT = """You are an assistant to the player of Aurora 4X (C# edition), a deep 4X space strategy game. \
+You and the player work in the same running game: you can see what the player does through the game journal, \
+read any open window as text, and operate the game's windows yourself with tools. The player may be using the \
+game at the same time as you.
 
 How to work:
-- The journal shows recent actions by the player, by you (companion) and the game, oldest first, with in-game dates.
+- The journal shows recent actions by the player, by you (assistant) and the game, oldest first, with in-game dates.
 - Windows are read as an outline of controls. Use read_window before acting on a window, and use the exact control \
 names it shows. Main windows open from toolbar buttons on the Tactical Map.
 - After acting, check the result (the tool result, or read the window again). If a message box appears, read it \
@@ -99,14 +100,14 @@ class Agent:
                 self._post_note("stopped")
             except Exception as e:
                 log.exception("turn failed")
-                self._post_assistant(f"(companion error: {e})")
+                self._post_assistant(f"(assistant error: {e})")
             finally:
                 self.current = None
             if self._due():
                 self.wake.set()
 
     def clear_history(self):
-        """Stop any running turn and start the companion's context afresh."""
+        """Stop any running turn and start the assistant's context afresh."""
         self.clearing = self.stop()
         self.store.clear()
         self.chat_start = self.journal_start = 0
@@ -313,8 +314,8 @@ class Agent:
         self.hub.publish({"type": "chat", "message": row})
 
     def _post_note(self, reason: str):
-        text = {"journal": "(Companion checked in on recent game activity.)",
-                "timer": "(Companion checked in after a while.)",
+        text = {"journal": "(Assistant checked in on recent game activity.)",
+                "timer": "(Assistant checked in after a while.)",
                 "stopped": "(Stopped by the player.)"}.get(reason, f"({reason})")
         row = self.store.add_chat("note", text)
         self.hub.publish({"type": "chat", "message": row})

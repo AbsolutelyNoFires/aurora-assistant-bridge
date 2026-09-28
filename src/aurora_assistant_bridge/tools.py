@@ -1,4 +1,4 @@
-"""Tools the companion can call, in OpenAI function format, executed against the patch API."""
+"""Tools the assistant can call, in OpenAI function format, executed against the patch API."""
 
 import asyncio
 import json
