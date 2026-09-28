@@ -14,16 +14,8 @@
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .layout { display: flex; height: 100vh; }
-  .game { flex: 1; min-width: 0; background: #000; }
-  .game iframe { width: 100%; height: 100%; border: 0; display: block; }
-  .side { width: 420px; display: flex; flex-direction: column; background: var(--panel);
-    border-left: 1px solid var(--border); min-height: 0; }
-  .side.collapsed { width: 40px; }
-  /* Without a streamed game desktop the page is just the chat. */
-  body.chat-only .game, body.chat-only #collapse { display: none; }
-  body.chat-only .side { width: 100%; max-width: 980px; margin: 0 auto; border-left: 0; }
-  .side.collapsed > :not(header), .side.collapsed header > :not(#collapse) { display: none; }
+  .side { height: 100vh; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column;
+    background: var(--panel); min-height: 0; }
 
   header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   header .title { font-weight: 600; flex: 1; }
@@ -81,23 +73,37 @@
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
   form button { background: #238636; color: #fff; border: 0; border-radius: 6px; padding: 0 14px; cursor: pointer; font: inherit; }
   form button#stop { background: #b62324; }
-  @media (max-width: 800px) {
-    .layout { flex-direction: column; }
-    .game { flex: none; height: 55vh; }
-    .side, .side.collapsed { width: 100%; flex: 1; border-left: 0; border-top: 1px solid var(--border); }
-  }
+  header .title .warn { color: var(--warn); font-weight: 400; margin-left: 6px; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0; width: min(520px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  dialog form { display: block; padding: 16px; border: 0; }
+  dialog h2 { font-size: 15px; margin: 0 0 12px; }
+  dialog label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  dialog input[type=text], dialog input[type=password], dialog input[type=number] { width: 100%; background: var(--bg);
+    color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  dialog .row { display: flex; gap: 6px; align-items: center; }
+  dialog .row input[type=range] { flex: 1; }
+  dialog .row input[type=number] { width: 90px; }
+  dialog .row button { white-space: nowrap; }
+  dialog .hint { font-size: 12px; color: var(--faint); margin-top: 3px; }
+  dialog .msg-line { font-size: 12px; min-height: 18px; margin-top: 10px; }
+  dialog .msg-line.error { color: #f85149; } dialog .msg-line.ok { color: var(--companion); }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  dialog button { border: 1px solid var(--border); background: none; color: var(--text); border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font: inherit; }
+  dialog button.primary { background: #238636; border-color: #238636; color: #fff; }
 </style>
 </head>
 <body>
-<div class="layout">
-  <div class="game"><iframe id="vnc" title="Aurora desktop"></iframe></div>
-  <aside class="side" id="side">
+  <main class="side">
     <header>
       <span class="title">Aurora Assistant</span>
       <button id="showChat" aria-pressed="true" title="Show chat messages">Chat</button>
       <button id="showJournal" aria-pressed="true" title="Show game journal">Journal</button>
       <button id="clear" title="Clear the chat and journal: the assistant starts with a fresh context">Clear</button>
-      <button id="collapse" title="Collapse sidebar">⇥</button>
+      <button id="openSettings" title="Model settings">Settings</button>
     </header>
     <div class="status" id="status"></div>
     <div class="feed" id="feed"></div>
@@ -106,15 +112,93 @@
       <button id="sendBtn">Send</button>
       <button id="stop" type="button" title="Stop the assistant (also stops the model)" hidden>Stop</button>
     </form>
-  </aside>
-</div>
+  </main>
+
+<dialog id="settings">
+  <form id="settingsForm" method="dialog">
+    <h2>Model settings</h2>
+    <label for="sBase">Endpoint (OpenAI-compatible server)</label>
+    <input type="text" id="sBase" placeholder="http://localhost:1234" autocomplete="off">
+    <div class="hint">LM Studio http://localhost:1234 · Ollama http://localhost:11434 · llama.cpp http://localhost:8080 · OpenRouter https://openrouter.ai/api</div>
+    <label for="sKey">API key</label>
+    <input type="password" id="sKey" autocomplete="off">
+    <div class="hint" id="sKeyHint">Only needed for hosted services.</div>
+    <label for="sModel">Model</label>
+    <div class="row">
+      <input type="text" id="sModel" list="sModels" autocomplete="off">
+      <datalist id="sModels"></datalist>
+      <button type="button" id="sLoad" title="Load the server's model list (also tests the connection)">Load models</button>
+    </div>
+    <label for="sTemp">Temperature</label>
+    <div class="row">
+      <input type="range" id="sTempRange" min="0" max="2" step="0.05">
+      <input type="number" id="sTemp" min="0" max="2" step="0.05">
+    </div>
+    <label for="sMax">Max tokens per reply</label>
+    <input type="number" id="sMax" min="0" step="256">
+    <div class="hint">Includes the model's reasoning. 0 = the server's default.</div>
+    <div class="msg-line" id="sMsg"></div>
+    <div class="actions">
+      <button type="button" id="sCancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
 <script>
-fetch('/api/config').then(r => r.json()).then(c => {
-  if (c.vnc) document.getElementById('vnc').src =
-    '/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&show_dot=1&path=websockify';
-  else document.body.classList.add('chat-only');
-  document.querySelector('header .title').textContent = 'Aurora Assistant' + (c.llm ? '' : ' — no model configured');
-});
+function showModel(llm) {
+  const t = document.querySelector('header .title');
+  t.textContent = 'Aurora Assistant';
+  if (!llm) t.append(el('span', 'warn', 'no model configured — open Settings'));
+}
+fetch('/api/config').then(r => r.json()).then(c => showModel(c.llm));
+
+// ---- Model settings -----------------------------------------------------------------------------
+
+const $ = id => document.getElementById(id);
+const dlg = $('settings');
+function sMsg(text, cls) { $('sMsg').textContent = text; $('sMsg').className = 'msg-line ' + (cls || ''); }
+
+$('openSettings').onclick = async () => {
+  const s = await (await fetch('/api/settings')).json();
+  $('sBase').value = s.llm_base_url;
+  $('sModel').value = s.llm_model;
+  $('sTemp').value = $('sTempRange').value = s.llm_temperature;
+  $('sMax').value = s.llm_max_tokens;
+  $('sKey').value = '';
+  $('sKey').placeholder = s.has_api_key ? 'saved — leave blank to keep' : '';
+  $('sKeyHint').textContent = s.has_api_key ? 'A key is saved. Type a new one to replace it.' : 'Only needed for hosted services.';
+  sMsg(s.env_overridden.length
+    ? `Set by environment variables, so saved values won't survive a restart: ${s.env_overridden.join(', ')}` : '',
+    s.env_overridden.length ? 'error' : '');
+  $('sModels').replaceChildren();
+  dlg.showModal();
+};
+$('sCancel').onclick = () => dlg.close();
+$('sTempRange').oninput = () => { $('sTemp').value = $('sTempRange').value; };
+$('sTemp').oninput = () => { $('sTempRange').value = $('sTemp').value; };
+$('sLoad').onclick = async () => {
+  sMsg('Contacting the server…');
+  const q = new URLSearchParams({ base_url: $('sBase').value.trim() });
+  if ($('sKey').value) q.set('api_key', $('sKey').value);
+  const r = await fetch('/api/models?' + q);
+  const d = await r.json();
+  if (!r.ok) return sMsg('Could not load models: ' + d.error, 'error');
+  $('sModels').replaceChildren(...d.models.map(m => { const o = document.createElement('option'); o.value = m; return o; }));
+  if (d.models.length === 1 && !$('sModel').value) $('sModel').value = d.models[0];
+  sMsg(`Connected: ${d.models.length} model(s). Pick one in the Model box.`, 'ok');
+};
+$('settingsForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const body = {
+    llm_base_url: $('sBase').value.trim(), llm_model: $('sModel').value.trim(),
+    llm_temperature: $('sTemp').value, llm_max_tokens: $('sMax').value || 0,
+  };
+  if ($('sKey').value) body.llm_api_key = $('sKey').value;
+  const r = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) return sMsg(d.error, 'error');
+  dlg.close();
+};
 
 const feed = document.getElementById('feed');
 const statusEl = document.getElementById('status');
@@ -280,7 +364,6 @@ for (const [id, cls] of [['showChat', 'no-chat'], ['showJournal', 'no-journal']]
   b.onclick = () => toggle(b, cls);
   try { if (localStorage.getItem(cls) === '0') toggle(b, cls); } catch {}
 }
-document.getElementById('collapse').onclick = () => document.getElementById('side').classList.toggle('collapsed');
 
 // ---- Data -------------------------------------------------------------------------------------
 
@@ -303,6 +386,7 @@ function connect() {
     else if (m.type === 'thinking') { reasoning = ''; dropStreaming(); }
     else if (m.type === 'delta') streamDelta(m.text);
     else if (m.type === 'discard') dropStreaming();
+    else if (m.type === 'settings') showModel(m.llm);
     else if (m.type === 'cleared') { streaming = null; feed.replaceChildren(); seen.clear(); }
   };
   es.onerror = () => { es.close(); setTimeout(() => { load(); connect(); }, 3000); };

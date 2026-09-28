@@ -48,8 +48,8 @@ class Agent:
         self.store = store
         self.hub = hub
         self.patch = patch
-        self.llm = LLM(cfg.llm_base_url, cfg.llm_model, cfg.llm_api_key, cfg.llm_temperature, cfg.llm_timeout_s) \
-            if cfg.llm_enabled else None
+        self.llm = None
+        self.reconfigure()
         self.wake = asyncio.Event()
         self.busy = False
         self.current: asyncio.Task | None = None
@@ -105,6 +105,12 @@ class Agent:
                 self.current = None
             if self._due():
                 self.wake.set()
+
+    def reconfigure(self):
+        """(Re)create the model client from the current settings; the next call uses them."""
+        cfg = self.cfg
+        self.llm = LLM(cfg.llm_base_url, cfg.llm_model, cfg.llm_api_key, cfg.llm_temperature, cfg.llm_timeout_s,
+                       cfg.llm_max_tokens) if cfg.llm_enabled else None
 
     def clear_history(self):
         """Stop any running turn and start the assistant's context afresh."""

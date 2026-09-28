@@ -52,6 +52,11 @@ async def completions(request: web.Request):
     return resp
 
 
+async def models(request: web.Request):
+    return web.json_response({"object": "list", "data": [{"id": "mock-model", "object": "model"}]})
+
+
 app = web.Application()
 app.router.add_post("/v1/chat/completions", completions)
+app.router.add_get("/v1/models", models)
 web.run_app(app, host="127.0.0.1", port=int(sys.argv[1]) if len(sys.argv) > 1 else 11999)

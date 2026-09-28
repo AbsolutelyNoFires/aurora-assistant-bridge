@@ -1,15 +1,15 @@
-"""Web UI: the shared game desktop (noVNC) beside the assistant chat (optional), plus an SSE update stream."""
+"""Web chat: the page, its API, and a server-sent event stream of chat, journal and status updates."""
 
 import asyncio
 import json
 from pathlib import Path
 
-import aiohttp
 from aiohttp import web
 
 from . import __version__
 from .agent import Agent
-from .config import Config
+from .config import UI_SETTINGS, Config, _coerce, config_path, env_overridden, save_settings
+from .llm import LLMError, list_models
 from .hub import Hub
 from .store import Store
 
@@ -18,33 +18,58 @@ STATIC = Path(__file__).parent / "static"
 
 def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Application:
     app = web.Application()
-    vnc_ws_url = cfg.vnc_ws_url
-    vnc = bool(vnc_ws_url) and Path(cfg.novnc_dir).is_dir()
 
     async def config(request: web.Request):
-        return web.json_response({"app": "aurora-assistant-bridge", "version": __version__, "vnc": vnc,
+        return web.json_response({"app": "aurora-assistant-bridge", "version": __version__,
                                   "llm": cfg.llm_model if cfg.llm_enabled else None})
 
     async def index(request: web.Request):
         return web.FileResponse(STATIC / "index.html")
 
-    async def websockify(request: web.Request):
-        """Proxy noVNC's websocket to websockify, so the whole UI is served from one port."""
-        client = web.WebSocketResponse(protocols=("binary",), max_msg_size=0)
-        await client.prepare(request)
-        async with aiohttp.ClientSession() as session:
-            async with session.ws_connect(vnc_ws_url, protocols=("binary",), max_msg_size=0) as upstream:
-                async def pump(src, dst):
-                    async for msg in src:
-                        if msg.type == aiohttp.WSMsgType.BINARY:
-                            await dst.send_bytes(msg.data)
-                        elif msg.type == aiohttp.WSMsgType.TEXT:
-                            await dst.send_str(msg.data)
-                        else:
-                            break
-                    await dst.close()
-                await asyncio.gather(pump(client, upstream), pump(upstream, client), return_exceptions=True)
-        return client
+    def settings_view() -> dict:
+        view = {k: getattr(cfg, k) for k in UI_SETTINGS if k != "llm_api_key"}
+        view["has_api_key"] = bool(cfg.llm_api_key)
+        view["env_overridden"] = [k for k in UI_SETTINGS if env_overridden(k)]
+        view["config_file"] = str(config_path())
+        return view
+
+    async def get_settings(request: web.Request):
+        return web.json_response(settings_view())
+
+    async def put_settings(request: web.Request):
+        body = await request.json()
+        updates = {}
+        try:
+            for key in UI_SETTINGS:
+                if key not in body or body[key] is None:
+                    continue
+                if key == "llm_api_key" and body[key] == "" and not body.get("clear_api_key"):
+                    continue  # Blank key field means "keep the current key".
+                updates[key] = _coerce(getattr(cfg, key), body[key])
+        except ValueError as e:
+            return web.json_response({"error": f"invalid value: {e}"}, status=400)
+        if "llm_temperature" in updates and not 0 <= updates["llm_temperature"] <= 2:
+            return web.json_response({"error": "temperature must be between 0 and 2"}, status=400)
+        if "llm_max_tokens" in updates and updates["llm_max_tokens"] < 0:
+            return web.json_response({"error": "max tokens must be 0 (server default) or more"}, status=400)
+        for key, value in updates.items():
+            setattr(cfg, key, value)
+        save_settings(updates)
+        agent.reconfigure()
+        hub.publish({"type": "settings", "llm": cfg.llm_model if cfg.llm_enabled else None})
+        return web.json_response(settings_view())
+
+    async def models(request: web.Request):
+        base = request.query.get("base_url") or cfg.llm_base_url
+        key = request.query.get("api_key") or cfg.llm_api_key
+        if not base:
+            return web.json_response({"error": "no endpoint set"}, status=400)
+        try:
+            return web.json_response({"models": await list_models(base, key)})
+        except TimeoutError:
+            return web.json_response({"error": "could not reach the server (timed out)"}, status=502)
+        except (LLMError, OSError, ValueError) as e:
+            return web.json_response({"error": str(e) or type(e).__name__}, status=502)
 
     async def history(request: web.Request):
         return web.json_response({
@@ -86,10 +111,9 @@ def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Applicati
 
     app.router.add_get("/", index)
     app.router.add_get("/api/config", config)
-    if vnc:
-        app.router.add_get("/websockify", websockify)
-        app.router.add_get("/novnc/websockify", websockify)  # noVNC resolves its path relative to vnc.html
-        app.router.add_static("/novnc/", Path(cfg.novnc_dir), follow_symlinks=True)
+    app.router.add_get("/api/settings", get_settings)
+    app.router.add_put("/api/settings", put_settings)
+    app.router.add_get("/api/models", models)
     app.router.add_get("/api/history", history)
     app.router.add_post("/api/chat", chat)
     app.router.add_post("/api/stop", stop)

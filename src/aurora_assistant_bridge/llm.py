@@ -17,8 +17,9 @@ class LLMError(Exception):
 
 
 class LLM:
-    def __init__(self, base_url: str, model: str, api_key: str, temperature: float, timeout_s: int):
-        self.url = base_url + ("/chat/completions" if base_url.endswith("/v1") else "/v1/chat/completions")
+    def __init__(self, base_url: str, model: str, api_key: str, temperature: float, timeout_s: int, max_tokens: int = 0):
+        self.url = api_url(base_url, "chat/completions")
+        self.max_tokens = max_tokens
         self.model = model
         self.api_key = api_key
         self.temperature = temperature
@@ -31,6 +32,8 @@ class LLM:
         body = {"model": self.model, "messages": messages, "stream": True, "temperature": self.temperature}
         if tools:
             body["tools"] = tools
+        if self.max_tokens > 0:
+            body["max_tokens"] = self.max_tokens
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -93,6 +96,23 @@ class LLM:
             for i, c in sorted(calls.items())
         ]
         return {"content": "".join(content), "tool_calls": tool_calls}
+
+
+def api_url(base_url: str, path: str) -> str:
+    """The server's /v1/<path>; the base URL may be the server root or end in /v1."""
+    base = base_url.rstrip("/")
+    return f"{base}/{path}" if base.endswith("/v1") else f"{base}/v1/{path}"
+
+
+async def list_models(base_url: str, api_key: str) -> list[str]:
+    """Model ids from the server's /v1/models; also serves as a connection test."""
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+        async with session.get(api_url(base_url, "models"), headers=headers) as r:
+            if r.status >= 400:
+                raise LLMError(f"HTTP {r.status}: {(await r.text())[:300]}")
+            data = await r.json(content_type=None)
+    return sorted(m["id"] for m in data.get("data", []) if "id" in m)
 
 
 ACTION_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.S)

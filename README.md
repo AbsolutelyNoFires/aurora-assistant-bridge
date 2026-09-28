@@ -8,7 +8,7 @@ An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It 
   enough fuel for 1,000 billion km"*. Works with any OpenAI-compatible model server, local or hosted.
 - **An MCP server** exposing the same game tools to MCP clients such as Claude Desktop or Claude Code.
 
-**Version 0.1.0.** Python only: Windows, Linux and macOS users all install it with pip.
+**Version 0.2.0.** Python only: Windows, Linux and macOS users all install it with pip.
 
 ## Install
 
@@ -35,8 +35,13 @@ just opens the chat page. The bridge can also be started before the game; it con
 
 ### Connect a model
 
-Edit the config file (run `aurora-assistant config` to see where it is — `%APPDATA%\aurora-assistant\config.toml`
-on Windows, `~/.config/aurora-assistant/config.toml` elsewhere) and restart the bridge:
+Press **Settings** on the chat page: set the endpoint of any OpenAI-compatible server, press **Load models** (this
+also tests the connection) and pick a model, and set the temperature and max tokens per reply. Changes apply to the
+next message and are saved in the config file.
+
+Or edit the config file directly (run `aurora-assistant config` to see where it is —
+`%APPDATA%\aurora-assistant\config.toml` on Windows, `~/.config/aurora-assistant/config.toml` elsewhere) and restart
+the bridge:
 
 ```toml
 # LM Studio
@@ -46,6 +51,8 @@ llm_model = "qwen3-27b"
 # Ollama:      llm_base_url = "http://localhost:11434"
 # llama.cpp:   llm_base_url = "http://localhost:8080"
 # OpenRouter:  llm_base_url = "https://openrouter.ai/api"  and  llm_api_key = "sk-or-..."
+llm_temperature = 0.6
+llm_max_tokens = 0        # 0 = the server's default
 ```
 
 Any server with an OpenAI-style `/v1/chat/completions` endpoint works. The assistant needs a model that is good at
@@ -65,7 +72,8 @@ Every setting is listed, commented, in the config file; each can also be set wit
 - Besides answering your messages, the assistant looks at the journal every 15 entries or 10 minutes of activity and
   speaks up if something is worth mentioning (`wake_journal_entries`, `wake_minutes`; 0 disables).
 
-To share the chat on your network (LAN, Tailscale), set `host = "0.0.0.0"`. There is no authentication.
+To share the chat on your network (LAN, Tailscale), set `host = "0.0.0.0"`. There is no authentication: anyone who
+can open the page can chat, operate the game and change the model settings (but cannot read a saved API key).
 
 ## MCP
 
@@ -86,13 +94,6 @@ Tools: `game_status`, `list_windows`, `read_window`, `click`, `set_value`, `sele
 `answer_dialog`, `recent_activity`. Action tools return their effects (windows opened or closed, message boxes,
 changed values), so a client rarely needs to re-read a window. `recent_activity` uses the journal of a running chat
 bridge if there is one, otherwise the game's raw UI events.
-
-## Game desktop streaming (optional)
-
-If Aurora runs on a server in a virtual desktop (e.g. Linux + Proton + VNC), the page can show the desktop beside
-the chat so the game is playable from a browser: set `vnc_ws_url` to a websockify endpoint for the VNC server and
-make sure noVNC is installed (`novnc_dir`, default `/usr/share/novnc`). `contrib/vm/` has the systemd units for such
-a setup.
 
 ## Development
 

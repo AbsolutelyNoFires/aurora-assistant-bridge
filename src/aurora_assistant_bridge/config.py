@@ -6,6 +6,7 @@ written there on first run.
 """
 
 import os
+import re
 import sys
 import tomllib
 from dataclasses import dataclass, field, fields
@@ -42,6 +43,7 @@ class Config:
     llm_model: str = _setting("local", "LLM_MODEL", "model name as the server knows it")
     llm_api_key: str = _setting("", "LLM_API_KEY", "API key, if the server needs one")
     llm_temperature: float = _setting(0.4, "LLM_TEMPERATURE", "sampling temperature")
+    llm_max_tokens: int = _setting(0, "LLM_MAX_TOKENS", "maximum tokens per model reply, including reasoning (0 = the server's default)")
     llm_timeout_s: int = _setting(600, "LLM_TIMEOUT_S", "seconds before a model call is abandoned")
     tool_mode: str = _setting("native", "TOOL_MODE", "native = OpenAI tool calling; text = JSON action blocks in replies, for models with poor tool calling")
 
@@ -58,11 +60,6 @@ class Config:
     host: str = _setting("127.0.0.1", "BRIDGE_HOST", "address for the chat page; 0.0.0.0 to share it on your network")
     port: int = _setting(47110, "BRIDGE_PORT", "port for the chat page")
     open_browser: bool = _setting(True, "OPEN_BROWSER", "open the chat page in a browser on start")
-
-    # Optional game desktop streamed over VNC (for Aurora running in a virtual desktop, e.g. on a server):
-    # the page then shows the desktop beside the chat. Needs websockify and noVNC.
-    vnc_ws_url: str = _setting("", "VNC_WS_URL", "websockify URL, e.g. ws://127.0.0.1:6080/websockify (empty = chat only)")
-    novnc_dir: str = _setting("/usr/share/novnc", "NOVNC_DIR", "noVNC web files")
 
     data_dir: str = _setting(str(default_data_dir()), "DATA_DIR", "where the chat and journal database is kept")
 
@@ -93,6 +90,43 @@ class Config:
             if value is not None:
                 setattr(cfg, key, _coerce(getattr(cfg, key), value))
         return cfg
+
+
+# Settings the chat page may change (the API key is write-only from the page).
+UI_SETTINGS = ("llm_base_url", "llm_model", "llm_api_key", "llm_temperature", "llm_max_tokens")
+
+
+def env_overridden(key: str) -> bool:
+    """True when an environment variable sets this key, so a saved file value would not take effect on restart."""
+    f = next(f for f in fields(Config) if f.name == key)
+    return f.metadata["env"] in os.environ
+
+
+def save_settings(updates: dict):
+    """Write settings into the config file, keeping its other lines and comments."""
+    path = config_path()
+    if not path.exists():
+        write_example(path)
+    lines = path.read_text().splitlines()
+    for key, value in updates.items():
+        line = f"{key} = {_toml(value)}"
+        active = next((i for i, l in enumerate(lines) if re.match(rf"\s*{key}\s*=", l)), None)
+        commented = next((i for i, l in enumerate(lines) if re.match(rf"\s*#\s*{key}\s*=", l)), None)
+        if active is not None:
+            lines[active] = line
+        elif commented is not None:
+            lines.insert(commented + 1, line)
+        else:
+            lines.append(line)
+    path.write_text("\n".join(lines) + "\n")
+
+
+def _toml(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _coerce(current, value):
