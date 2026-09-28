@@ -4,9 +4,9 @@ This is the client application for the Aurora Assistant api, which is an AuroraP
 
 This client application provides a chat page with a text interface to talk to an LLM endpoint. It's designed for **local-first** LLM hosting: all calls are sequential, and context length can be managed in-app.
 
-The LLM assistant can play the game with you: reading text boxes, clicking buttons on forms, watching and understanding the wider context as you click between Fuel Efficiency technology menus the and Engine Design screen.
+The LLM assistant can play the game with you: reading text boxes, clicking buttons on forms, watching and understanding the wider context as you click between Fuel Efficiency technology menus and the Engine Design screen.
 
-The application also packs it's own MCP server, so you can keep working from your preferred harness (Pi, Claude Code, Hermes, etc).
+The application also packs its own MCP server, so you can keep working from your preferred harness (Pi, Claude Code, Hermes, etc).
 
 **Version 0.2.3.** Python only: Windows, Linux and macOS users all install it with pip or pipx.
 
