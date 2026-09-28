@@ -24,6 +24,7 @@ The application also packs its own MCP server, so you can keep working from your
 
 <video src="https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
 
+[Qwen-issues-orders-to-task-groups-vp9.webm](https://github.com/user-attachments/assets/28f8754c-2787-4791-bd03-f24c9b4769a5)
 
 [Download the video](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm)
 
