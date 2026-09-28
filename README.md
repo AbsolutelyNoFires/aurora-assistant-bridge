@@ -21,7 +21,7 @@ thermal signature with our own Enterprise-class scouts (Class Design).
 
 <video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/answers-questions-from-menus.webm" controls width="100%"></video>
 
-[Download the video](docs/media/answers-questions-from-menus.webm)
+[Download the video](http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/answers-questions-from-menus.webm)
 
 **Giving orders to task groups** (3½ min). Asked to gather spare tugs at the fuel harvesters, it works through
 Naval Organization while the player steers it: **Stop** and "no — fuel harvesters, it's group FH-02", later
@@ -30,7 +30,7 @@ destination that was not in the list, and ends with a table of where each group 
 
 <video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
 
-[Download the video](docs/media/issues-orders-to-task-groups.webm)
+[Download the video](http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/issues-orders-to-task-groups.webm)
 
 ## Install
 
