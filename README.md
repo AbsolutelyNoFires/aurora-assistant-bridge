@@ -15,7 +15,7 @@ An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It 
 You need the **Aurora Assistant API** patch installed in Aurora (see its README), and Python 3.11+.
 
 ```sh
-pip install aurora_assistant_bridge-0.1.0-py3-none-any.whl   # from the releases page
+pip install aurora_assistant_bridge-<version>-py3-none-any.whl   # from the releases page
 # or from a checkout:
 pip install .
 ```
