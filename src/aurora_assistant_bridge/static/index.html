@@ -140,6 +140,13 @@
     <label for="sMax">Max tokens per reply</label>
     <input type="number" id="sMax" min="0" step="256">
     <div class="hint">Includes the model's reasoning. 0 = the server's default.</div>
+    <label for="sCtx">Context window (tokens)</label>
+    <div class="row">
+      <input type="number" id="sCtx" min="2048" step="1024" style="flex:1;width:auto">
+      <button type="button" id="sDetect" title="Ask the server (llama.cpp or LM Studio) for its context size">Detect</button>
+    </div>
+    <div class="hint">Must not exceed the server's context size (llama.cpp <code>-c</code>, LM Studio "Context Length"),
+      or long tasks lose their beginning. The chat and journal are kept within it.</div>
     <div class="msg-line" id="sMsg"></div>
     <div class="actions">
       <button type="button" id="sCancel">Cancel</button>
@@ -168,6 +175,7 @@ $('openSettings').onclick = async () => {
   fillModels([], savedModel);
   $('sTemp').value = $('sTempRange').value = s.llm_temperature;
   $('sMax').value = s.llm_max_tokens;
+  $('sCtx').value = s.llm_context_tokens;
   $('sKey').value = '';
   $('sKey').placeholder = s.has_api_key ? 'saved — leave blank to keep' : '';
   $('sKeyHint').textContent = s.has_api_key ? 'A key is saved. Type a new one to replace it.' : 'Only needed for hosted services.';
@@ -214,14 +222,33 @@ async function loadModels(quiet) {
   if (!r.ok) return sMsg((quiet ? 'Server not reachable: ' : 'Could not load models: ') + d.error, 'error');
   const current = $('sModelSelect').value === OTHER ? ($('sModel').value.trim() || savedModel) : $('sModelSelect').value;
   fillModels(d.models, current);
-  sMsg(`Connected: ${d.models.length} model${d.models.length === 1 ? '' : 's'} available.`, 'ok');
+  let text = `Connected: ${d.models.length} model${d.models.length === 1 ? '' : 's'} available.`;
+  const c = await detectContext();
+  if (c && c.tokens && c.tokens !== Number($('sCtx').value))
+    text += ` The server's context is ${c.tokens.toLocaleString()} tokens (${c.source}) — press Detect to use it.`;
+  sMsg(text, 'ok');
 }
+async function detectContext() {
+  const q = new URLSearchParams({ base_url: $('sBase').value.trim(), model: chosenModel() });
+  if ($('sKey').value) q.set('api_key', $('sKey').value);
+  const r = await fetch('/api/context?' + q);
+  const d = await r.json();
+  return r.ok ? d : (d.error ? { error: d.error } : null);
+}
+$('sDetect').onclick = async () => {
+  sMsg('Asking the server…');
+  const c = await detectContext();
+  if (!c || c.error) return sMsg(c?.error || 'The server does not report its context size; enter it by hand.', 'error');
+  $('sCtx').value = c.tokens;
+  sMsg(`${c.source} reports ${c.tokens.toLocaleString()} tokens. Save to use it.`, 'ok');
+};
 $('sLoad').onclick = () => loadModels(false);
 $('settingsForm').onsubmit = async ev => {
   ev.preventDefault();
   const body = {
     llm_base_url: $('sBase').value.trim(), llm_model: chosenModel(),
     llm_temperature: $('sTemp').value, llm_max_tokens: $('sMax').value || 0,
+    llm_context_tokens: $('sCtx').value || 32768,
   };
   if (!body.llm_model) return sMsg('Choose a model (or type one under Other…).', 'error');
   if ($('sKey').value) body.llm_api_key = $('sKey').value;

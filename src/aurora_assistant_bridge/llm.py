@@ -115,6 +115,32 @@ async def list_models(base_url: str, api_key: str) -> list[str]:
     return sorted(m["id"] for m in data.get("data", []) if "id" in m)
 
 
+async def detect_context(base_url: str, model: str, api_key: str) -> tuple[int, str] | None:
+    """The server's context window in tokens, if it reports one: llama.cpp (/props) or LM Studio
+    (/api/v0/models/<model>). None when unknown."""
+    root = base_url.rstrip("/")
+    root = root[:-3] if root.endswith("/v1") else root
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async def get(url):
+            try:
+                async with session.get(url, headers=headers) as r:
+                    return await r.json(content_type=None) if r.status < 400 else None
+            except (aiohttp.ClientError, TimeoutError, ValueError):
+                return None
+
+        props = await get(f"{root}/props")
+        n = (props or {}).get("default_generation_settings", {}).get("n_ctx")
+        if isinstance(n, int) and n > 0:
+            return n, "llama.cpp"
+        if model:
+            info = await get(f"{root}/api/v0/models/{model}")
+            n = (info or {}).get("loaded_context_length") or (info or {}).get("max_context_length")
+            if isinstance(n, int) and n > 0:
+                return n, "LM Studio"
+    return None
+
+
 ACTION_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.S)
 
 

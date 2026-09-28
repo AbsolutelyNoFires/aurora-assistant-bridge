@@ -44,12 +44,13 @@ class Config:
     llm_api_key: str = _setting("", "LLM_API_KEY", "API key, if the server needs one")
     llm_temperature: float = _setting(0.4, "LLM_TEMPERATURE", "sampling temperature")
     llm_max_tokens: int = _setting(0, "LLM_MAX_TOKENS", "maximum tokens per model reply, including reasoning (0 = the server's default)")
+    llm_context_tokens: int = _setting(32768, "LLM_CONTEXT_TOKENS", "the model server's context window in tokens (e.g. llama.cpp -c); chat and journal are kept within it")
     llm_timeout_s: int = _setting(600, "LLM_TIMEOUT_S", "seconds before a model call is abandoned")
     tool_mode: str = _setting("native", "TOOL_MODE", "native = OpenAI tool calling; text = JSON action blocks in replies, for models with poor tool calling")
 
-    # Context budgets in characters (~4 per token); chat and journal are truncated separately.
-    chat_budget_chars: int = _setting(24000, "CHAT_BUDGET_CHARS", "chat history kept in the model's context, in characters")
-    journal_budget_chars: int = _setting(12000, "JOURNAL_BUDGET_CHARS", "game journal kept in the model's context, in characters")
+    # Advanced: fixed budgets in characters instead of deriving them from llm_context_tokens.
+    chat_budget_chars: int = _setting(0, "CHAT_BUDGET_CHARS", "chat history kept in the model's context, in characters (0 = from llm_context_tokens)")
+    journal_budget_chars: int = _setting(0, "JOURNAL_BUDGET_CHARS", "game journal kept in the model's context, in characters (0 = from llm_context_tokens)")
     max_tool_steps: int = _setting(25, "MAX_TOOL_STEPS", "tool calls allowed per turn")
 
     # Background wake-ups besides player chat. 0 disables.
@@ -93,7 +94,7 @@ class Config:
 
 
 # Settings the chat page may change (the API key is write-only from the page).
-UI_SETTINGS = ("llm_base_url", "llm_model", "llm_api_key", "llm_temperature", "llm_max_tokens")
+UI_SETTINGS = ("llm_base_url", "llm_model", "llm_api_key", "llm_temperature", "llm_max_tokens", "llm_context_tokens")
 
 
 def env_overridden(key: str) -> bool:

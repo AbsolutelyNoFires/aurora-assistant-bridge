@@ -40,6 +40,10 @@ WAKE_PROMPT = ("(No new message from the player. Game activity since you last sp
                "Otherwise reply with exactly: NOTHING)")
 
 OLD_TOOL_RESULT_CHARS = 600
+# Conservative characters per token for budgeting (window text, JSON and numbers tokenize densely).
+CHARS_PER_TOKEN = 3
+# Tool results of the current task kept in full even when the task alone outgrows the budget.
+KEEP_RECENT_RESULTS = 2
 
 
 class Agent:
@@ -64,6 +68,7 @@ class Agent:
         # Truncation windows (first included id), advanced in steps.
         self.chat_start = 0
         self.journal_start = 0
+        self.squeezed: set[int] = set()  # current-task tool results shortened to fit the context
 
     # Triggers ------------------------------------------------------------------------------
 
@@ -212,11 +217,23 @@ class Agent:
 
     # Context --------------------------------------------------------------------------------
 
+    def budgets(self) -> tuple[int, int]:
+        """(chat, journal) budgets in characters, from the model's context window unless set explicitly.
+        Leaves room for the reply (including reasoning), the system prompt and the tool definitions."""
+        cfg = self.cfg
+        ctx = max(cfg.llm_context_tokens, 2048)
+        reply = cfg.llm_max_tokens if cfg.llm_max_tokens > 0 else min(16384, ctx // 4)
+        fixed = len(SYSTEM_PROMPT) + len(json.dumps(TOOLS)) + 3000  # + the state note
+        available = max((ctx - reply) * CHARS_PER_TOKEN - fixed, 4000)
+        return (cfg.chat_budget_chars or int(available * 0.7),
+                cfg.journal_budget_chars or int(available * 0.3))
+
     def build_context(self, text_mode: bool) -> list[dict]:
+        chat_budget, journal_budget = self.budgets()
         chat = self.store.chat_since(self.chat_start)
         journal = self.store.journal_since(self.journal_start)
-        chat = self._truncate_chat(chat)
-        journal = self._truncate_journal(journal)
+        chat = self._truncate_chat(chat, chat_budget)
+        journal = self._truncate_journal(journal, journal_budget)
 
         system = SYSTEM_PROMPT + ("\n\n" + text_mode_instructions() if text_mode else "")
         messages: list[dict] = [{"role": "system", "content": system}]
@@ -240,7 +257,7 @@ class Agent:
             in_tool_run = messages[-1]["role"] == "tool" or bool(messages[-1].get("tool_calls"))
             if r["role"] == "tool":
                 content = r["content"] or ""
-                if r["id"] < current_turn_start and len(content) > OLD_TOOL_RESULT_CHARS:
+                if (r["id"] < current_turn_start or r["id"] in self.squeezed) and len(content) > OLD_TOOL_RESULT_CHARS:
                     content = content[:OLD_TOOL_RESULT_CHARS] + " …"
                 if text_mode:
                     messages.append({"role": "user", "content": f"[result of {r['name']}]\n{content}"})
@@ -261,23 +278,54 @@ class Agent:
         flush_journal()
         return _merge_consecutive_user(messages)
 
-    def _truncate_chat(self, rows: list[dict]) -> list[dict]:
-        if _chars(rows) <= self.cfg.chat_budget_chars:
-            return rows
-        # Drop the oldest ~30%, then start at a player message so no turn is cut in half.
-        target = self.cfg.chat_budget_chars * 0.7
-        while rows and _chars(rows) > target:
-            rows = rows[1:]
-        while rows and rows[0]["role"] not in ("user", "note"):
-            rows = rows[1:]
-        self.chat_start = rows[0]["id"] - 1 if rows else self.chat_start
+    def _truncate_chat(self, rows: list[dict], budget: int) -> list[dict]:
+        """Keep the chat within budget. Whole older turns are dropped from the front (in large steps, so the
+        prompt prefix stays stable for the server's cache); the current turn is never dropped. If the current
+        turn alone is too big, its older tool results are shortened instead."""
+        turn_start = self._current_turn_start(rows)
+        self.squeezed = set()
+
+        def size(r):
+            content = r.get("content") or ""
+            if r["role"] == "tool" and r["id"] < turn_start:
+                return min(len(content), OLD_TOOL_RESULT_CHARS + 2)  # as build_context will send it
+            return len(content) + (len(json.dumps(r["tool_calls"])) if r.get("tool_calls") else 0)
+
+        total = sum(size(r) for r in rows)
+        if total > budget:
+            target = budget * 0.7
+            i = 0
+            while i < len(rows) and total > target and rows[i]["id"] < turn_start:
+                total -= size(rows[i])
+                i += 1
+            # Start at a turn boundary so no turn is cut in half.
+            while i < len(rows) and rows[i]["id"] < turn_start and rows[i]["role"] not in ("user", "note"):
+                total -= size(rows[i])
+                i += 1
+            if i:
+                rows = rows[i:]
+                self.chat_start = rows[0]["id"] - 1
+
+        if total > budget:
+            results = [r for r in rows if r["role"] == "tool" and r["id"] >= turn_start]
+            for r in results[:-KEEP_RECENT_RESULTS] if len(results) > KEEP_RECENT_RESULTS else []:
+                if total <= budget:
+                    break
+                content_len = len(r.get("content") or "")
+                if content_len > OLD_TOOL_RESULT_CHARS:
+                    self.squeezed.add(r["id"])
+                    total -= content_len - OLD_TOOL_RESULT_CHARS
+            if total > budget:
+                log.warning("the current task needs ~%d tokens but the chat budget is ~%d (context window %d tokens); "
+                            "raise the context window in Settings if the server allows it",
+                            total // CHARS_PER_TOKEN, budget // CHARS_PER_TOKEN, self.cfg.llm_context_tokens)
         return rows
 
-    def _truncate_journal(self, rows: list[dict]) -> list[dict]:
+    def _truncate_journal(self, rows: list[dict], budget: int) -> list[dict]:
         size = sum(len(e["text"]) + 30 for e in rows)
-        if size <= self.cfg.journal_budget_chars:
+        if size <= budget:
             return rows
-        target = self.cfg.journal_budget_chars * 0.7
+        target = budget * 0.7
         while rows and size > target:
             size -= len(rows[0]["text"]) + 30
             rows = rows[1:]
@@ -336,10 +384,6 @@ class Agent:
     def _set_busy(self, busy: bool):
         self.busy = busy
         self.hub.publish({"type": "status", "busy": busy})
-
-
-def _chars(rows: list[dict]) -> int:
-    return sum(len(r.get("content") or "") + len(json.dumps(r["tool_calls"]) if r.get("tool_calls") else "") for r in rows)
 
 
 def _merge_consecutive_user(messages: list[dict]) -> list[dict]:

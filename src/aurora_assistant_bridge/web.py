@@ -9,7 +9,7 @@ from aiohttp import web
 from . import __version__
 from .agent import Agent
 from .config import UI_SETTINGS, Config, _coerce, config_path, env_overridden, save_settings
-from .llm import LLMError, list_models
+from .llm import LLMError, detect_context, list_models
 from .hub import Hub
 from .store import Store
 
@@ -50,6 +50,8 @@ def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Applicati
             return web.json_response({"error": f"invalid value: {e}"}, status=400)
         if "llm_temperature" in updates and not 0 <= updates["llm_temperature"] <= 2:
             return web.json_response({"error": "temperature must be between 0 and 2"}, status=400)
+        if "llm_context_tokens" in updates and updates["llm_context_tokens"] < 2048:
+            return web.json_response({"error": "context window must be at least 2048 tokens"}, status=400)
         if "llm_max_tokens" in updates and updates["llm_max_tokens"] < 0:
             return web.json_response({"error": "max tokens must be 0 (server default) or more"}, status=400)
         for key, value in updates.items():
@@ -70,6 +72,16 @@ def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Applicati
             return web.json_response({"error": "could not reach the server (timed out)"}, status=502)
         except (LLMError, OSError, ValueError) as e:
             return web.json_response({"error": str(e) or type(e).__name__}, status=502)
+
+    async def context(request: web.Request):
+        base = request.query.get("base_url") or cfg.llm_base_url
+        if not base:
+            return web.json_response({"error": "no endpoint set"}, status=400)
+        found = await detect_context(base, request.query.get("model") or cfg.llm_model,
+                                     request.query.get("api_key") or cfg.llm_api_key)
+        if not found:
+            return web.json_response({"error": "the server does not report its context size; enter it by hand"}, status=404)
+        return web.json_response({"tokens": found[0], "source": found[1]})
 
     async def history(request: web.Request):
         return web.json_response({
@@ -114,6 +126,7 @@ def make_app(store: Store, hub: Hub, agent: Agent, cfg: Config) -> web.Applicati
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings", put_settings)
     app.router.add_get("/api/models", models)
+    app.router.add_get("/api/context", context)
     app.router.add_get("/api/history", history)
     app.router.add_post("/api/chat", chat)
     app.router.add_post("/api/stop", stop)
