@@ -1,17 +1,24 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aurora-assistant-bridge"
-version = "0.2.2"
+version = "0.2.3"
 description = "LLM assistant for Aurora 4X: web chat and MCP server over the Aurora Assistant API patch"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "AbsolutelyNoFires" }]
 dependencies = [
     "aiohttp>=3.9",
     "mcp>=2.2,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AbsolutelyNoFires/aurora-assistant-bridge"
+"Game patch" = "https://github.com/AbsolutelyNoFires/aurora-assistant-api"
 
 [project.scripts]
 aurora-assistant = "aurora_assistant_bridge.cli:main"

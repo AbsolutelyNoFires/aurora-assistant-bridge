@@ -1,53 +1,45 @@
 # Aurora Assistant bridge
 
-An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It talks to the game through the
-[Aurora Assistant API](http://forgejo/yecenia/aurora-assistant-api) patch and gives you:
+This is the client application for the Aurora Assistant api, which is an AuroraPatch mod for [Aurora 4X](http://aurora4x.com/).
 
-- **A chat page** at <http://localhost:47110/>: talk to an assistant that watches what you do in the game (the
-  journal), reads any open window, and operates the game for you — e.g. *"design a tanker with 5 EP960 engines and
-  enough fuel for 1,000 billion km"*. Works with any OpenAI-compatible model server, local or hosted.
-- **An MCP server** exposing the same game tools to MCP clients such as Claude Desktop or Claude Code.
+This client application provides a chat page with a text interface to talk to an LLM endpoint. It's designed for **local-first** LLM hosting: all calls are sequential, and context length can be managed in-app.
 
-**Version 0.2.2.** Python only: Windows, Linux and macOS users all install it with pip.
+The LLM assistant can play the game with you: reading text boxes, clicking buttons on forms, watching and understanding the wider context as you click between Fuel Efficiency technology menus the and Engine Design screen.
+
+The application also packs it's own MCP server, so you can keep working from your preferred harness (Pi, Claude Code, Hermes, etc).
+
+**Version 0.2.3.** Python only: Windows, Linux and macOS users all install it with pip or pipx.
 
 ## See it in action
 
-Recorded with Qwen 27B (llama.cpp) on Linux: the chat page on the left, Aurora on the right.
+**Answering questions from the game's windows** (1½ min). The model (Qwen 3.8 27B) is asked to review Intelligence data on an alien race, and compare their ship's readings with a similar ship of our own navy. The Qwen model itself is not smart enough to understand that lower TH number in-game = less heat, and reports that our scout is *easier* to spot rather than harder.
 
-**Answering questions from the game's windows** (1½ min). The assistant finds where two survey ships ended up
-(Naval Organization), looks up an alien race it has seen only once (Intelligence and Foreign Relations), says plainly
-that there is no speed reading for their ship yet and what it would take to get one, and compares the alien ship's
-thermal signature with our own Enterprise-class scouts (Class Design).
+<video src="https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/answers-questions-from-menus.webm" controls width="100%"></video>
 
-<video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/answers-questions-from-menus.webm" controls width="100%"></video>
+[Download the video](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/answers-questions-from-menus.webm)
 
-[Download the video](http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/answers-questions-from-menus.webm)
+**Giving orders to task groups** (3½ min). Qwen is given a multi-stage command - find tugs, find fuel harvesters, and move the tugs to their gas giant. Qwen needs prompting to locate both classes in the list - at first confusing the Wreckage Harvesters as the intended target - but finally manages to discover the harvesting system, and command the Tug groups to their system ingress.
 
-**Giving orders to task groups** (3½ min). Asked to gather spare tugs at the fuel harvesters, it works through
-Naval Organization while the player steers it: **Stop** and "no — fuel harvesters, it's group FH-02", later
-"actually send that one to the black hole". It adds movement orders to four tug groups, recovers from picking a
-destination that was not in the list, and ends with a table of where each group is going.
+<video src="https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
 
-<video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
-
-[Download the video](http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/issues-orders-to-task-groups.webm)
+[Download the video](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/raw/main/docs/media/issues-orders-to-task-groups.webm)
 
 ## Install
 
 You need two things: the **game patch** in Aurora, and this **bridge** installed in Python.
 
 **1. The game patch.** Download `aurora-assistant-api-<version>.zip` from the
-[aurora-assistant-api releases](http://forgejo/yecenia/aurora-assistant-api/releases) and unzip it into your Aurora
+[aurora-assistant-api releases](https://github.com/AbsolutelyNoFires/aurora-assistant-api/releases) and unzip it into your Aurora
 folder, so that `Patches/AuroraAssistantApi/` appears there. (Requires AuroraPatch and its Lib patch.)
 
 **2. The bridge.** Download the newest `aurora_assistant_bridge-<version>-py3-none-any.whl` from the
-[releases page](http://forgejo/yecenia/aurora-assistant-bridge/releases). It does *not* go in the Aurora folder —
+[releases page](https://github.com/AbsolutelyNoFires/aurora-assistant-bridge/releases). It does *not* go in the Aurora folder —
 leave it wherever your browser saved it (usually Downloads) and install it from there. You need Python 3.11 or newer.
 
 *Windows* (Command Prompt; get Python from [python.org](https://www.python.org/downloads/) if `py` is not found):
 
 ```bat
-py -m pip install "%USERPROFILE%\Downloads\aurora_assistant_bridge-0.2.2-py3-none-any.whl"
+py -m pip install "%USERPROFILE%\Downloads\aurora_assistant_bridge-0.2.3-py3-none-any.whl"
 py -m aurora_assistant_bridge
 ```
 
@@ -56,11 +48,11 @@ py -m aurora_assistant_bridge
 ```sh
 sudo apt install pipx        # Debian/Ubuntu; macOS: brew install pipx
 pipx ensurepath              # then open a new terminal
-pipx install ~/Downloads/aurora_assistant_bridge-0.2.2-py3-none-any.whl
+pipx install ~/Downloads/aurora_assistant_bridge-0.2.3-py3-none-any.whl
 aurora-assistant
 ```
 
-Change `0.2.2` to the version you downloaded. To upgrade later, install the newer file the same way
+Change `0.2.3` to the version you downloaded. To upgrade later, install the newer file the same way
 (with pipx: `pipx install --force <file>`).
 
 ## Use
