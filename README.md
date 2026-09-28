@@ -10,6 +10,28 @@ An LLM assistant for [Aurora 4X](http://aurora2.pentarch.org/) (C# edition). It 
 
 **Version 0.2.2.** Python only: Windows, Linux and macOS users all install it with pip.
 
+## See it in action
+
+Recorded with Qwen 27B (llama.cpp) on Linux: the chat page on the left, Aurora on the right.
+
+**Answering questions from the game's windows** (1½ min). The assistant finds where two survey ships ended up
+(Naval Organization), looks up an alien race it has seen only once (Intelligence and Foreign Relations), says plainly
+that there is no speed reading for their ship yet and what it would take to get one, and compares the alien ship's
+thermal signature with our own Enterprise-class scouts (Class Design).
+
+<video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/answers-questions-from-menus.webm" controls width="100%"></video>
+
+[Download the video](docs/media/answers-questions-from-menus.webm)
+
+**Giving orders to task groups** (3½ min). Asked to gather spare tugs at the fuel harvesters, it works through
+Naval Organization while the player steers it: **Stop** and "no — fuel harvesters, it's group FH-02", later
+"actually send that one to the black hole". It adds movement orders to four tug groups, recovers from picking a
+destination that was not in the list, and ends with a table of where each group is going.
+
+<video src="http://forgejo/yecenia/aurora-assistant-bridge/raw/branch/main/docs/media/issues-orders-to-task-groups.webm" controls width="100%"></video>
+
+[Download the video](docs/media/issues-orders-to-task-groups.webm)
+
 ## Install
 
 You need two things: the **game patch** in Aurora, and this **bridge** installed in Python.
